@@ -1,0 +1,24 @@
+# Template BedGraph — signal génomique continu
+# Format : chrom	start	end	value
+# Les 4 colonnes sont toutes requises.
+# Les coordonnées sont en base 0 (half-open).
+#
+# Colonnes :
+#   chrom : nom du chromosome (ex: chr1)
+#   start : position de début (entier, base 0)
+#   end   : position de fin (entier, exclusif)
+#   value : valeur du signal (float, peut être négatif)
+#
+# Notes :
+#   - Les intervalles ne doivent pas se chevaucher sur le même chromosome
+#   - Pour de gros fichiers de signal, préférez le format BigWig (binaire)
+#   - La valeur peut représenter un coverage, un log2-fold-change, etc.
+#
+chr1	1000	1100	2.5
+chr1	1100	1200	3.1
+chr1	1200	1300	0.8
+chr1	1300	1400	1.4
+chr1	1400	1500	5.2
+chr1	1500	1600	4.7
+chr1	1600	1700	2.1
+chr1	1700	1800	0.3

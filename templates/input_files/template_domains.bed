@@ -1,0 +1,21 @@
+# Template Domains — domaines génomiques (ex: TADs)
+# Format BED avec au minimum 3 colonnes. 
+# Représente des domaines larges, continuus et non-chevauchants.
+#
+# Colonnes :
+#   chrom  : nom du chromosome
+#   start  : début du domaine (base 0)
+#   end    : fin du domaine (base 0, exclusif)
+#   name   : identifiant du domaine (optionnel)
+#
+# Notes :
+#   - Les domaines ne doivent pas se chevaucher
+#   - Taille typique pour les TADs : 100 kb à 2 Mb
+#   - Produit par des outils comme Arrowhead (Juicer) ou HiCExplorer
+#
+chr1	0	500000	TAD_1
+chr1	500000	1200000	TAD_2
+chr1	1200000	2000000	TAD_3
+chr1	2000000	3500000	TAD_4
+chr2	0	800000	TAD_chr2_1
+chr2	800000	1800000	TAD_chr2_2

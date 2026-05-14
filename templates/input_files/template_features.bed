@@ -1,0 +1,21 @@
+# Template BED — intervalles génomiques
+# Format : chrom	start	end	name	score	strand
+# Les 3 premières colonnes sont requises. Les autres sont optionnelles.
+# Les coordonnées sont en base 0 (half-open).
+#
+# Colonnes :
+#   chrom  : nom du chromosome (ex: chr1)
+#   start  : position de début (entier, base 0)
+#   end    : position de fin (entier, exclusif)
+#   name   : identifiant de la feature (optionnel)
+#   score  : valeur numérique entre 0 et 1000 (optionnel)
+#   strand : + ou - (optionnel)
+#
+# Exemple minimal (3 colonnes) :
+# chr1	1000	2000
+#
+# Exemple complet (6 colonnes) :
+chr1	1000	2000	feature_A	500	+
+chr1	3500	4200	feature_B	300	-
+chr1	5000	6000	feature_C	800	+
+chr2	1000	1500	feature_D	200	.

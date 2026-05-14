@@ -1,0 +1,28 @@
+# Template GTF — annotation de gènes
+# Format GTF/GFF2 standard (9 colonnes séparées par des tabulations)
+# Les coordonnées sont en base 1 (contrairement à BED).
+#
+# Colonnes :
+#   seqname    : nom du chromosome / séquence
+#   source     : origine de l'annotation (ex: Ensembl, UCSC, rGenomeTrackUI)
+#   feature    : type de feature (gene, transcript, exon, CDS, ...)
+#   start      : position de début (base 1, inclusive)
+#   end        : position de fin (base 1, inclusive)
+#   score      : valeur numérique ou point (.)
+#   strand     : brin + ou -
+#   frame      : phase de lecture 0/1/2 ou point (.)
+#   attributes : liste d'attributs clé "valeur" séparés par des ;
+#
+# Champs minimum requis dans les attributs :
+#   gene_id "ID_du_gène"  (requis)
+#   transcript_id "ID_du_transcript"  (requis pour exon/CDS)
+#
+chr1	rGenomeTrackUI	gene	1000	5000	.	+	.	gene_id "GENE001"; gene_name "MYGENE";
+chr1	rGenomeTrackUI	transcript	1000	5000	.	+	.	gene_id "GENE001"; transcript_id "GENE001.1";
+chr1	rGenomeTrackUI	exon	1000	1200	.	+	.	gene_id "GENE001"; transcript_id "GENE001.1";
+chr1	rGenomeTrackUI	exon	2000	3000	.	+	.	gene_id "GENE001"; transcript_id "GENE001.1";
+chr1	rGenomeTrackUI	exon	4500	5000	.	+	.	gene_id "GENE001"; transcript_id "GENE001.1";
+chr1	rGenomeTrackUI	gene	6000	9000	.	-	.	gene_id "GENE002"; gene_name "OTHERGENE";
+chr1	rGenomeTrackUI	transcript	6000	9000	.	-	.	gene_id "GENE002"; transcript_id "GENE002.1";
+chr1	rGenomeTrackUI	exon	6000	6800	.	-	.	gene_id "GENE002"; transcript_id "GENE002.1";
+chr1	rGenomeTrackUI	exon	8000	9000	.	-	.	gene_id "GENE002"; transcript_id "GENE002.1";

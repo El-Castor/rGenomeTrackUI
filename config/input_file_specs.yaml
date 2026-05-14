@@ -1,0 +1,249 @@
+# =============================================================================
+# input_file_specs.yaml — Central registry of supported input file formats
+# =============================================================================
+# Used by:
+#   - R/core/input_specs.R        (load_input_specs, validate_against_format_spec)
+#   - R/modules/mod_inputs.R      (Formats & templates tab)
+#   - R/modules/mod_documentation.R (Documentation page)
+# =============================================================================
+
+formats:
+
+  bed:
+    label: "BED"
+    extensions: [".bed"]
+    binary: false
+    min_columns: 3
+    columns:
+      - chrom
+      - start
+      - end
+      - name
+      - score
+      - strand
+    required_columns: [chrom, start, end]
+    associated_tracks: [bed, domains, regions]
+    description: "Intervalles génomiques. Utilisé pour des annotations, pics, domaines ou régions."
+    example: |
+      chr1	1000	2000	feature_1	0	+
+      chr1	2500	3000	feature_2	0	-
+    template_file: "template_features.bed"
+    example_file: "example_features.bed"
+    notes:
+      - "Les coordonnées BED sont en base 0 (half-open)."
+      - "Les noms de chromosomes doivent correspondre entre les fichiers."
+      - "Les colonnes 4-6 (name, score, strand) sont optionnelles."
+
+  bedgraph:
+    label: "BedGraph"
+    extensions: [".bedgraph", ".bg"]
+    binary: false
+    min_columns: 4
+    columns:
+      - chrom
+      - start
+      - end
+      - value
+    required_columns: [chrom, start, end, value]
+    associated_tracks: [bedgraph]
+    description: "Signal génomique continu stocké sous forme texte."
+    example: |
+      chr1	1000	1100	2.5
+      chr1	1100	1200	3.1
+      chr1	1200	1300	0.8
+    template_file: "template_signal.bedgraph"
+    example_file: "example_signal.bedgraph"
+    notes:
+      - "Pour de gros fichiers de signal, préférez BigWig."
+      - "La valeur peut être positive ou négative (ex: log2-fold-change)."
+      - "Les intervalles ne doivent pas se chevaucher."
+
+  bigwig:
+    label: "BigWig"
+    extensions: [".bw", ".bigwig"]
+    binary: true
+    min_columns: ~
+    columns: []
+    required_columns: []
+    associated_tracks: [bigwig]
+    description: "Format binaire indexé pour le signal génomique continu."
+    example: ""
+    template_file: ~
+    example_file: ~
+    notes:
+      - "Recommandé pour les grands fichiers de coverage."
+      - "Ne peut pas être édité manuellement dans un éditeur texte."
+      - "Généré typiquement par bamCoverage (deeptools) ou bedtools genomecov + bedGraphToBigWig."
+
+  gtf:
+    label: "GTF / GFF"
+    extensions: [".gtf", ".gff", ".gff3"]
+    binary: false
+    min_columns: 9
+    columns:
+      - seqname
+      - source
+      - feature
+      - start
+      - end
+      - score
+      - strand
+      - frame
+      - attributes
+    required_columns: [seqname, source, feature, start, end, score, strand, frame, attributes]
+    associated_tracks: [gtf]
+    description: "Fichier d'annotation de gènes avec structure exon/transcript/gène."
+    example: |
+      chr1	rGenomeTrackUI	gene	1000	5000	.	+	.	gene_id "gene1"; gene_name "GENE1";
+      chr1	rGenomeTrackUI	transcript	1000	5000	.	+	.	gene_id "gene1"; transcript_id "tx1";
+      chr1	rGenomeTrackUI	exon	1000	1500	.	+	.	gene_id "gene1"; transcript_id "tx1";
+    template_file: "template_genes.gtf"
+    example_file: "example_genes.gtf"
+    notes:
+      - "Doit contenir au minimum les features 'gene', 'transcript' et 'exon'."
+      - "Les attributs gene_id et transcript_id sont requis pour le rendu correct."
+      - "Les coordonnées GTF sont en base 1 (contrairement à BED)."
+
+  narrowpeak:
+    label: "narrowPeak"
+    extensions: [".narrowPeak"]
+    binary: false
+    min_columns: 6
+    columns:
+      - chrom
+      - start
+      - end
+      - name
+      - score
+      - strand
+      - signalValue
+      - pValue
+      - qValue
+      - peak
+    required_columns: [chrom, start, end]
+    associated_tracks: [narrowPeak]
+    description: "Appels de pics depuis MACS2 ou d'autres peak callers."
+    example: |
+      chr1	1000	1200	peak_1	100	.	10.5	3.2	1.5	100
+      chr1	3000	3400	peak_2	80	.	8.7	2.9	1.1	200
+    template_file: "template_peaks.narrowPeak"
+    example_file: "example_peaks.narrowPeak"
+    notes:
+      - "Format standard produit par MACS2 avec --call-summits."
+      - "La colonne 'peak' indique l'offset du sommet depuis start."
+      - "Les colonnes 7-10 (signalValue, pValue, qValue, peak) sont optionnelles mais recommandées."
+
+  bedpe:
+    label: "BEDPE / Links"
+    extensions: [".bedpe", ".links"]
+    binary: false
+    min_columns: 6
+    columns:
+      - chrom1
+      - start1
+      - end1
+      - chrom2
+      - start2
+      - end2
+      - name
+      - score
+      - strand1
+      - strand2
+    required_columns: [chrom1, start1, end1, chrom2, start2, end2]
+    associated_tracks: [links]
+    description: "Paires d'intervalles génomiques pour les arcs ou liens d'interactions."
+    example: |
+      chr1	1000	1500	chr1	5000	5500	link_1	10	+	+
+      chr1	2000	2300	chr1	8000	8500	link_2	7	+	+
+    template_file: "template_links.bedpe"
+    example_file: "example_links.bedpe"
+    notes:
+      - "Utile pour les interactions chromatiniennes (Hi-C, ChIA-PET)."
+      - "Les deux intervalles peuvent être sur des chromosomes différents."
+      - "Le score détermine l'épaisseur/opacité de l'arc dans pyGenomeTracks."
+
+  domains:
+    label: "Domains"
+    extensions: [".bed", ".domains"]
+    binary: false
+    min_columns: 3
+    columns:
+      - chrom
+      - start
+      - end
+      - name
+    required_columns: [chrom, start, end]
+    associated_tracks: [domains]
+    description: "Domaines génomiques larges, par exemple des TADs ou des régions annotées."
+    example: |
+      chr1	1000	5000	domain_1
+      chr1	6000	12000	domain_2
+    template_file: "template_domains.bed"
+    example_file: "example_domains.bed"
+    notes:
+      - "Format similaire à BED mais représente des domaines larges."
+      - "Souvent produit par des outils de TAD calling (Arrowhead, HiCExplorer)."
+
+  regions:
+    label: "Regions BED"
+    extensions: [".bed"]
+    binary: false
+    min_columns: 3
+    columns:
+      - chrom
+      - start
+      - end
+      - name
+    required_columns: [chrom, start, end]
+    associated_tracks: []
+    description: "Liste de régions à visualiser, une ligne = une figure."
+    example: |
+      chr1	1000	5000	region_1
+      chr1	6000	10000	region_2
+    template_file: "template_regions.bed"
+    example_file: "example_regions.bed"
+    notes:
+      - "Chaque ligne génère une figure séparée."
+      - "La colonne name est utilisée comme titre de figure si présente."
+      - "Utiliser des régions de taille similaire pour des figures comparables."
+
+  vlines:
+    label: "Lignes verticales"
+    extensions: [".bed", ".tsv"]
+    binary: false
+    min_columns: 2
+    columns:
+      - chrom
+      - position
+      - label
+    required_columns: [chrom, position]
+    associated_tracks: [vlines]
+    description: "Marqueurs verticaux pour mettre en évidence des positions génomiques précises."
+    example: |
+      chr1	2500	marqueur_1
+      chr1	7000	marqueur_2
+    template_file: "template_vlines.tsv"
+    example_file: "example_vlines.tsv"
+    notes:
+      - "Les coordonnées doivent être dans la région sélectionnée."
+      - "Le label est affiché au-dessus de la ligne verticale."
+
+  hlines:
+    label: "Lignes horizontales"
+    extensions: [".tsv"]
+    binary: false
+    min_columns: 1
+    columns:
+      - y_value
+      - label
+    required_columns: [y_value]
+    associated_tracks: [hlines]
+    description: "Lignes horizontales pour les seuils de signal."
+    example: |
+      0	baseline
+      5	seuil
+    template_file: "template_hlines.tsv"
+    example_file: "example_hlines.tsv"
+    notes:
+      - "Utilisé sur les tracks de signal (bedgraph, bigwig)."
+      - "La valeur y doit être dans la plage du signal du track associé."

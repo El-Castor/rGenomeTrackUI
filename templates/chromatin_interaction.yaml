@@ -1,0 +1,46 @@
+name: "Chromatin Interaction"
+description: "Hi-C matrix, TAD domains, chromatin links, and gene annotations."
+created_at: "2026-05-12"
+tracks:
+  - track_type: hic_matrix
+    track_name: "Hi-C Matrix"
+    params:
+      title: "Hi-C"
+      height: 6
+      depth: 300000
+      transform: "log1p"
+      colormap: "Reds"
+  - track_type: spacer
+    track_name: "Spacer1"
+    params:
+      height: 0.3
+  - track_type: domains
+    track_name: "TAD Domains"
+    params:
+      title: "TADs"
+      height: 2
+      color: "#9ecae1"
+      border_color: "#3182bd"
+  - track_type: links
+    track_name: "Chromatin Links"
+    params:
+      title: "Links"
+      height: 3
+      color: "#756bb1"
+      links_type: "arcs"
+  - track_type: spacer
+    track_name: "Spacer2"
+    params:
+      height: 0.3
+  - track_type: gtf
+    track_name: "Genes"
+    params:
+      title: "Genes"
+      height: 4
+      style: "UCSC"
+      display: "stacked"
+      labels: true
+  - track_type: x_axis
+    track_name: "Genomic axis"
+    params:
+      where: "bottom"

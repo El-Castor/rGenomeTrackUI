@@ -1,0 +1,21 @@
+# =============================================================================
+# app_config.yaml — Application configuration
+# =============================================================================
+app:
+  name: "rGenomeTrackUI"
+  version: "0.1.0"
+  port: 3838
+  host: "127.0.0.1"
+  projects_root: "projects"
+  log_level: "INFO"
+
+figure_defaults:
+  output_format: "png"
+  width: 38
+  dpi: 150
+  fontsize: 14
+  track_label_fraction: 0.1
+  track_label_h_align: "left"
+
+conda:
+  env_name: "rgenometrackui"

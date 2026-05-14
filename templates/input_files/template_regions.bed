@@ -1,0 +1,18 @@
+# Template Régions — liste de régions à visualiser
+# Format BED, une ligne = une figure produite par pyGenomeTracks
+#
+# Colonnes :
+#   chrom  : nom du chromosome
+#   start  : début de la région (base 0)
+#   end    : fin de la région (base 0, exclusif)
+#   name   : titre de la figure (optionnel, mais fortement recommandé)
+#
+# Notes :
+#   - Chaque ligne génère une figure séparée
+#   - Les régions peuvent être sur des chromosomes différents
+#   - Utiliser des régions de taille comparable pour une cohérence visuelle
+#   - Le format chr:start-end (onglet région unique) est aussi accepté
+#
+chr1	1000	20000	region_promoteur_GENE001
+chr1	50000	120000	region_enhancer_cluster
+chr2	5000	30000	region_interet_chr2

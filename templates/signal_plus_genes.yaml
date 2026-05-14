@@ -1,0 +1,28 @@
+name: "Signal + Genes"
+description: "BigWig signal track on top of gene annotations."
+created_at: "2026-05-12"
+tracks:
+  - track_type: bigwig
+    track_name: "Signal BigWig"
+    params:
+      title: "Signal"
+      height: 3
+      color: "#1f77b4"
+      type: "fill"
+      show_data_range: true
+  - track_type: spacer
+    track_name: "Spacer"
+    params:
+      height: 0.3
+  - track_type: gtf
+    track_name: "Genes"
+    params:
+      title: "Genes"
+      height: 5
+      style: "UCSC"
+      display: "stacked"
+      labels: true
+  - track_type: x_axis
+    track_name: "Genomic axis"
+    params:
+      where: "bottom"

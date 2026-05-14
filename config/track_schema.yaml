@@ -1,0 +1,583 @@
+# =============================================================================
+# rGenomeTrackUI — Track Schema (pyGenomeTracks / rGenomeTracks)
+# =============================================================================
+# Version      : 1.0.0
+# Source:
+#   - https://pygenometracks.readthedocs.io/
+#   - https://bioconductor.org/packages/release/bioc/vignettes/rGenomeTracks/
+#   - https://github.com/OmarAshkar/rGenomeTracks
+# =============================================================================
+
+tracks:
+
+  # ---------------------------------------------------------------------------
+  bigwig:
+    label: "BigWig signal"
+    file_required: true
+    accepted_extensions: [".bw", ".bigwig", ".bigWig"]
+    pygenometracks_file_type: "bigwig"
+    rgenometracks_function: "track_bigwig"
+    params:
+      title:
+        type: text
+        default: ""
+        description: "Track title displayed on the left"
+      height:
+        type: numeric
+        default: 3
+        min: 0.5
+        max: 20
+        description: "Track height in cm"
+      color:
+        type: color
+        default: "#1f77b4"
+        description: "Fill color"
+      alpha:
+        type: numeric
+        default: 1
+        min: 0
+        max: 1
+        description: "Color transparency (0=transparent, 1=opaque)"
+      min_value:
+        type: text
+        default: "auto"
+        description: "Minimum y-axis value (auto or number)"
+      max_value:
+        type: text
+        default: "auto"
+        description: "Maximum y-axis value (auto or number)"
+      number_of_bins:
+        type: numeric
+        default: 700
+        description: "Number of bins for aggregation"
+      nans_to_zeros:
+        type: boolean
+        default: false
+        description: "Replace NaN values with zeros"
+      show_data_range:
+        type: boolean
+        default: true
+        description: "Display data range label"
+      data_range_style:
+        type: select
+        choices: ["inset", "text"]
+        default: "inset"
+        description: "Style for data range display"
+      summary_method:
+        type: select
+        choices: ["mean", "min", "max", "sum", "coverage"]
+        default: "mean"
+        description: "Aggregation method for bins"
+      type:
+        type: select
+        choices: ["fill", "line", "point"]
+        default: "fill"
+        description: "Plot style"
+      grid:
+        type: boolean
+        default: false
+        description: "Show horizontal grid lines"
+      orientation:
+        type: select
+        choices: ["normal", "inverted"]
+        default: "normal"
+        description: "Track orientation"
+
+  # ---------------------------------------------------------------------------
+  bed:
+    label: "BED annotation"
+    file_required: true
+    accepted_extensions: [".bed", ".bed.gz"]
+    pygenometracks_file_type: "bed"
+    rgenometracks_function: "track_bed"
+    params:
+      title:
+        type: text
+        default: ""
+      height:
+        type: numeric
+        default: 3
+        min: 0.5
+        max: 20
+      color:
+        type: color
+        default: "#333333"
+      border_color:
+        type: color
+        default: "black"
+      color_utr:
+        type: color
+        default: "#aaaaaa"
+      height_utr:
+        type: numeric
+        default: 0.75
+        min: 0.1
+        max: 1
+        description: "Proportion of UTR height relative to coding region"
+      labels:
+        type: boolean
+        default: true
+        description: "Display feature labels"
+      display:
+        type: select
+        choices: ["stacked", "collapsed", "interleaved", "triangles"]
+        default: "stacked"
+        description: "How overlapping features are displayed"
+      style:
+        type: select
+        choices: ["UCSC", "flybase"]
+        default: "UCSC"
+      max_labels:
+        type: numeric
+        default: 60
+        description: "Max number of labels to display"
+      global_max_row:
+        type: boolean
+        default: false
+      gene_rows:
+        type: numeric
+        default: 0
+        description: "Number of gene rows (0 = auto)"
+      arrowhead_included:
+        type: boolean
+        default: false
+      orientation:
+        type: select
+        choices: ["normal", "inverted"]
+        default: "normal"
+
+  # ---------------------------------------------------------------------------
+  gtf:
+    label: "GTF/GFF genes"
+    file_required: true
+    accepted_extensions: [".gtf", ".gtf.gz", ".gff", ".gff3", ".gff.gz"]
+    pygenometracks_file_type: "gtf"
+    rgenometracks_function: "track_gtf"
+    params:
+      title:
+        type: text
+        default: "Genes"
+      height:
+        type: numeric
+        default: 5
+        min: 1
+        max: 30
+      style:
+        type: select
+        choices: ["UCSC", "flybase", "tssarrow"]
+        default: "UCSC"
+        description: "Gene model drawing style"
+      display:
+        type: select
+        choices: ["stacked", "collapsed", "interleaved"]
+        default: "stacked"
+      labels:
+        type: boolean
+        default: true
+      color:
+        type: color
+        default: "#1f77b4"
+      border_color:
+        type: color
+        default: "black"
+      color_utr:
+        type: color
+        default: "#aaaaaa"
+      height_utr:
+        type: numeric
+        default: 0.75
+        min: 0.1
+        max: 1
+      max_labels:
+        type: numeric
+        default: 60
+      merge_transcripts:
+        type: boolean
+        default: false
+        description: "Merge all transcripts into one model"
+      prefered_name:
+        type: text
+        default: "gene_name"
+        description: "GTF attribute to use as label"
+      orientation:
+        type: select
+        choices: ["normal", "inverted"]
+        default: "normal"
+
+  # ---------------------------------------------------------------------------
+  bedgraph:
+    label: "BedGraph signal"
+    file_required: true
+    accepted_extensions: [".bedgraph", ".bg", ".bedgraph.gz"]
+    pygenometracks_file_type: "bedgraph"
+    rgenometracks_function: "track_bedgraph"
+    params:
+      title:
+        type: text
+        default: ""
+      height:
+        type: numeric
+        default: 3
+        min: 0.5
+        max: 20
+      color:
+        type: color
+        default: "#1f77b4"
+      alpha:
+        type: numeric
+        default: 1
+        min: 0
+        max: 1
+      min_value:
+        type: text
+        default: "auto"
+      max_value:
+        type: text
+        default: "auto"
+      type:
+        type: select
+        choices: ["fill", "line", "point"]
+        default: "fill"
+      show_data_range:
+        type: boolean
+        default: true
+      grid:
+        type: boolean
+        default: false
+      orientation:
+        type: select
+        choices: ["normal", "inverted"]
+        default: "normal"
+
+  # ---------------------------------------------------------------------------
+  bedgraph_matrix:
+    label: "BedGraph matrix"
+    file_required: true
+    accepted_extensions: [".bedgraph", ".bg"]
+    pygenometracks_file_type: "bedgraph_matrix"
+    rgenometracks_function: "track_bedgraph_matrix"
+    params:
+      title:
+        type: text
+        default: ""
+      height:
+        type: numeric
+        default: 3
+      colormap:
+        type: text
+        default: "RdYlBu_r"
+      min_value:
+        type: text
+        default: "auto"
+      max_value:
+        type: text
+        default: "auto"
+
+  # ---------------------------------------------------------------------------
+  narrowPeak:
+    label: "narrowPeak peaks"
+    file_required: true
+    accepted_extensions: [".narrowPeak", ".narrowPeak.gz"]
+    pygenometracks_file_type: "narrow_peak"
+    rgenometracks_function: "track_narrowPeak"
+    params:
+      title:
+        type: text
+        default: "Peaks"
+      height:
+        type: numeric
+        default: 2
+        min: 0.5
+        max: 10
+      color:
+        type: color
+        default: "#e6550d"
+      border_color:
+        type: color
+        default: "black"
+      use_score:
+        type: boolean
+        default: false
+        description: "Color peaks by score"
+      display:
+        type: select
+        choices: ["stacked", "collapsed", "interleaved"]
+        default: "stacked"
+
+  # ---------------------------------------------------------------------------
+  links:
+    label: "Links / arcs (BEDPE)"
+    file_required: true
+    accepted_extensions: [".bedpe", ".links", ".links.gz"]
+    pygenometracks_file_type: "links"
+    rgenometracks_function: "track_links"
+    params:
+      title:
+        type: text
+        default: "Links"
+      height:
+        type: numeric
+        default: 3
+        min: 0.5
+        max: 20
+      color:
+        type: color
+        default: "#756bb1"
+      alpha:
+        type: numeric
+        default: 0.8
+        min: 0
+        max: 1
+      line_width:
+        type: numeric
+        default: 1.5
+        min: 0.1
+        max: 10
+      line_style:
+        type: select
+        choices: ["solid", "dashed", "dotted"]
+        default: "solid"
+      links_type:
+        type: select
+        choices: ["arcs", "loops"]
+        default: "arcs"
+      compact_arcs_level:
+        type: numeric
+        default: 0
+
+  # ---------------------------------------------------------------------------
+  domains:
+    label: "Domains / TADs"
+    file_required: true
+    accepted_extensions: [".bed", ".bed.gz"]
+    pygenometracks_file_type: "domains"
+    rgenometracks_function: "track_domains"
+    params:
+      title:
+        type: text
+        default: "Domains"
+      height:
+        type: numeric
+        default: 2
+        min: 0.5
+        max: 10
+      color:
+        type: color
+        default: "#9ecae1"
+      border_color:
+        type: color
+        default: "#3182bd"
+      line_width:
+        type: numeric
+        default: 0.5
+      orientation:
+        type: select
+        choices: ["normal", "inverted"]
+        default: "normal"
+
+  # ---------------------------------------------------------------------------
+  hic_matrix:
+    label: "Hi-C matrix"
+    file_required: true
+    accepted_extensions: [".cool", ".mcool", ".hic"]
+    pygenometracks_file_type: "hic_matrix"
+    rgenometracks_function: null
+    params:
+      title:
+        type: text
+        default: "Hi-C"
+      height:
+        type: numeric
+        default: 5
+        min: 1
+        max: 30
+      depth:
+        type: numeric
+        default: 100000
+        description: "Maximum depth in bp to display"
+      min_value:
+        type: text
+        default: "auto"
+      max_value:
+        type: text
+        default: "auto"
+      transform:
+        type: select
+        choices: ["no", "log", "log1p", "-log"]
+        default: "log1p"
+        description: "Value transformation"
+      colormap:
+        type: text
+        default: "Reds"
+        description: "Matplotlib colormap name"
+      show_masked_bins:
+        type: boolean
+        default: false
+      rasterize:
+        type: boolean
+        default: true
+
+  # ---------------------------------------------------------------------------
+  epilogos:
+    label: "Epilogos"
+    file_required: true
+    accepted_extensions: [".bed", ".bed.gz"]
+    pygenometracks_file_type: "epilogos"
+    rgenometracks_function: "track_epilogos"
+    params:
+      title:
+        type: text
+        default: "Epilogos"
+      height:
+        type: numeric
+        default: 5
+
+  # ---------------------------------------------------------------------------
+  spacer:
+    label: "Spacer (blank space)"
+    file_required: false
+    accepted_extensions: []
+    pygenometracks_file_type: "spacer"
+    rgenometracks_function: "track_spacer"
+    params:
+      height:
+        type: numeric
+        default: 0.5
+        min: 0.1
+        max: 5
+
+  # ---------------------------------------------------------------------------
+  x_axis:
+    label: "X axis (genomic coordinates)"
+    file_required: false
+    accepted_extensions: []
+    pygenometracks_file_type: "x_axis"
+    rgenometracks_function: "track_x_axis"
+    params:
+      where:
+        type: select
+        choices: ["top", "bottom"]
+        default: "bottom"
+        description: "Display position of the axis"
+      title:
+        type: text
+        default: ""
+      fontsize:
+        type: numeric
+        default: 15
+        min: 5
+        max: 30
+
+  # ---------------------------------------------------------------------------
+  scalebar:
+    label: "Scale bar"
+    file_required: false
+    accepted_extensions: []
+    pygenometracks_file_type: "scalebar"
+    rgenometracks_function: null
+    params:
+      height:
+        type: numeric
+        default: 0.5
+        min: 0.1
+        max: 5
+      where:
+        type: select
+        choices: ["top", "bottom"]
+        default: "bottom"
+      title:
+        type: text
+        default: ""
+      fontsize:
+        type: numeric
+        default: 12
+
+  # ---------------------------------------------------------------------------
+  hlines:
+    label: "Horizontal reference lines"
+    file_required: false
+    accepted_extensions: []
+    pygenometracks_file_type: "hlines"
+    rgenometracks_function: "track_hlines"
+    params:
+      y_values:
+        type: text
+        default: "0"
+        description: "Comma-separated y positions"
+      height:
+        type: numeric
+        default: 1
+      color:
+        type: color
+        default: "#333333"
+      line_width:
+        type: numeric
+        default: 1
+      line_style:
+        type: select
+        choices: ["solid", "dashed", "dotted"]
+        default: "dashed"
+
+  # ---------------------------------------------------------------------------
+  vlines:
+    label: "Vertical reference lines"
+    file_required: false
+    accepted_extensions: []
+    pygenometracks_file_type: "vlines"
+    rgenometracks_function: "track_vlines"
+    params:
+      x_values:
+        type: text
+        default: ""
+        description: "Comma-separated genomic positions"
+      color:
+        type: color
+        default: "#333333"
+      line_width:
+        type: numeric
+        default: 1
+      line_style:
+        type: select
+        choices: ["solid", "dashed", "dotted"]
+        default: "dashed"
+      alpha:
+        type: numeric
+        default: 0.7
+        min: 0
+        max: 1
+
+  # ---------------------------------------------------------------------------
+  vhighlight:
+    label: "Vertical highlight (shaded region)"
+    file_required: false
+    accepted_extensions: []
+    pygenometracks_file_type: "vhighlight"
+    rgenometracks_function: "track_vhighlight"
+    params:
+      region:
+        type: text
+        default: ""
+        description: "Region to highlight e.g. chr1:100-200"
+      color:
+        type: color
+        default: "#fdd0a2"
+      alpha:
+        type: numeric
+        default: 0.4
+        min: 0
+        max: 1
+
+# ---------------------------------------------------------------------------
+# Global pyGenomeTracks figure parameters
+# ---------------------------------------------------------------------------
+figure_defaults:
+  width: 38
+  height: null          # auto
+  dpi: 150
+  title: ""
+  fontsize: 14
+  track_label_fraction: 0.1
+  track_label_h_align: "left"
+  decreasing_x_axis: false
+  output_format: "png"
+  output_basename: "figure"

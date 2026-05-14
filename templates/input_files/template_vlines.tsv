@@ -1,0 +1,16 @@
+# Template Lignes verticales — marqueurs de positions précises
+# Format TSV 2-3 colonnes (sans en-tête)
+#
+# Colonnes :
+#   chrom    : nom du chromosome
+#   position : position génomique exacte (entier)
+#   label    : étiquette affichée (optionnel)
+#
+# Notes :
+#   - Les positions doivent être dans la région visualisée
+#   - Le label s'affiche au-dessus de la ligne verticale
+#   - Utile pour marquer des sites de restriction, mutations, etc.
+#
+chr1	2500	TSS_GENE001
+chr1	7000	pic_signal
+chr1	12000	mutation_rs12345

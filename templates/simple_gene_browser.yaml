@@ -1,0 +1,16 @@
+name: "Simple gene browser"
+description: "Minimal track setup: gene annotations + genomic axis."
+created_at: "2026-05-12"
+tracks:
+  - track_type: gtf
+    track_name: "Genes"
+    params:
+      title: "Genes"
+      height: 5
+      style: "UCSC"
+      display: "stacked"
+      labels: true
+  - track_type: x_axis
+    track_name: "Genomic axis"
+    params:
+      where: "bottom"

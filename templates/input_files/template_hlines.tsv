@@ -1,0 +1,15 @@
+# Template Lignes horizontales — seuils de signal
+# Format TSV 1-2 colonnes (sans en-tête)
+#
+# Colonnes :
+#   y_value : valeur y de la ligne horizontale (float)
+#   label   : étiquette affichée (optionnel)
+#
+# Notes :
+#   - Utilisé avec les tracks de signal (bedgraph, bigwig)
+#   - La valeur doit être dans la plage de valeurs du signal
+#   - Utile pour marquer un seuil de coupure ou une baseline
+#
+0	baseline
+2	seuil_bas
+5	seuil_haut

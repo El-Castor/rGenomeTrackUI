@@ -1,0 +1,8 @@
+chr1	Ensembl	gene	1000	8000	.	+	.	gene_id "ENSG00000001"; gene_name "EXGENE1";
+chr1	Ensembl	transcript	1000	8000	.	+	.	gene_id "ENSG00000001"; transcript_id "ENST00000001"; transcript_name "EXGENE1-201";
+chr1	Ensembl	exon	1000	1300	.	+	.	gene_id "ENSG00000001"; transcript_id "ENST00000001";
+chr1	Ensembl	exon	2000	3500	.	+	.	gene_id "ENSG00000001"; transcript_id "ENST00000001";
+chr1	Ensembl	exon	6000	8000	.	+	.	gene_id "ENSG00000001"; transcript_id "ENST00000001";
+chr1	Ensembl	CDS	1100	1300	.	+	0	gene_id "ENSG00000001"; transcript_id "ENST00000001";
+chr1	Ensembl	CDS	2000	3500	.	+	0	gene_id "ENSG00000001"; transcript_id "ENST00000001";
+chr1	Ensembl	CDS	6000	7800	.	+	0	gene_id "ENSG00000001"; transcript_id "ENST00000001";

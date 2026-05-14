@@ -1,0 +1,9 @@
+{
+  "project_name": "Demo rGenomeTrackUI",
+  "project_slug": "demo_rgenometrackui",
+  "genome_label": "demo",
+  "description": "Demonstration project with pre-loaded example tracks.",
+  "created_at": "2026-05-14T00:17:42",
+  "app_version": "0.1.0",
+  "project_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/projects/demo_rgenometrackui"
+}

@@ -1,0 +1,67 @@
+[
+  {
+    "file_id": "demo_mini_signal",
+    "original_name": "mini_signal.bedgraph",
+    "stored_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/projects/demo_rgenometrackui/inputs/raw/mini_signal.bedgraph",
+    "source_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/example_data/mini_signal.bedgraph",
+    "linked_or_copied": "copied",
+    "file_type_detected": "bedgraph",
+    "track_type_selected": "bedgraph",
+    "size_bytes": 343,
+    "date_added": "2026-05-14T00:17:42",
+    "status": "ok",
+    "notes": "Example file"
+  },
+  {
+    "file_id": "demo_mini_genes",
+    "original_name": "mini_genes.gtf",
+    "stored_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/projects/demo_rgenometrackui/inputs/raw/mini_genes.gtf",
+    "source_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/example_data/mini_genes.gtf",
+    "linked_or_copied": "copied",
+    "file_type_detected": "gtf",
+    "track_type_selected": "gtf",
+    "size_bytes": 1020,
+    "date_added": "2026-05-14T00:17:42",
+    "status": "ok",
+    "notes": "Example file"
+  },
+  {
+    "file_id": "demo_mini_peaks",
+    "original_name": "mini_peaks.narrowPeak",
+    "stored_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/projects/demo_rgenometrackui/inputs/raw/mini_peaks.narrowPeak",
+    "source_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/example_data/mini_peaks.narrowPeak",
+    "linked_or_copied": "copied",
+    "file_type_detected": "narrowPeak",
+    "track_type_selected": "narrowPeak",
+    "size_bytes": 92,
+    "date_added": "2026-05-14T00:17:42",
+    "status": "ok",
+    "notes": "Example file"
+  },
+  {
+    "file_id": "demo_mini_links",
+    "original_name": "mini_links.bedpe",
+    "stored_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/projects/demo_rgenometrackui/inputs/raw/mini_links.bedpe",
+    "source_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/example_data/mini_links.bedpe",
+    "linked_or_copied": "copied",
+    "file_type_detected": "links",
+    "track_type_selected": "links",
+    "size_bytes": 86,
+    "date_added": "2026-05-14T00:17:42",
+    "status": "ok",
+    "notes": "Example file"
+  },
+  {
+    "file_id": "demo_mini_regions",
+    "original_name": "mini_regions.bed",
+    "stored_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/projects/demo_rgenometrackui/inputs/raw/mini_regions.bed",
+    "source_path": "/Users/clpichot/Documents/DEV/rGenomeTrackUI/example_data/mini_regions.bed",
+    "linked_or_copied": "copied",
+    "file_type_detected": "bed",
+    "track_type_selected": "bed",
+    "size_bytes": 57,
+    "date_added": "2026-05-14T00:17:42",
+    "status": "ok",
+    "notes": "Example file"
+  }
+]

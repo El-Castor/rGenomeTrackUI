@@ -1,0 +1,13 @@
+##gff-version 3
+# Mini GTF for rGenomeTrackUI example data
+# Chromosome chr1, two genes
+chr1	test	gene	1000	4000	.	+	.	gene_id "GENE1"; gene_name "GeneA"; gene_biotype "protein_coding";
+chr1	test	transcript	1000	4000	.	+	.	gene_id "GENE1"; transcript_id "GENE1.1"; gene_name "GeneA";
+chr1	test	exon	1000	1500	.	+	.	gene_id "GENE1"; transcript_id "GENE1.1"; exon_number "1";
+chr1	test	exon	2000	3000	.	+	.	gene_id "GENE1"; transcript_id "GENE1.1"; exon_number "2";
+chr1	test	exon	3500	4000	.	+	.	gene_id "GENE1"; transcript_id "GENE1.1"; exon_number "3";
+chr1	test	gene	6000	9500	.	-	.	gene_id "GENE2"; gene_name "GeneB"; gene_biotype "protein_coding";
+chr1	test	transcript	6000	9500	.	-	.	gene_id "GENE2"; transcript_id "GENE2.1"; gene_name "GeneB";
+chr1	test	exon	6000	6800	.	-	.	gene_id "GENE2"; transcript_id "GENE2.1"; exon_number "1";
+chr1	test	exon	7500	8500	.	-	.	gene_id "GENE2"; transcript_id "GENE2.1"; exon_number "2";
+chr1	test	exon	9000	9500	.	-	.	gene_id "GENE2"; transcript_id "GENE2.1"; exon_number "3";

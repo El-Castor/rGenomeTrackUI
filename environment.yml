@@ -1,0 +1,132 @@
+# =============================================================================
+# rGenomeTrackUI — Conda environment definition
+# =============================================================================
+# Version      : 1.0.0
+# Last updated : 2026-05-12
+#
+# Description:
+#   Full reproducible Conda environment for rGenomeTrackUI.
+#   Provides R, Python, pyGenomeTracks, BEDTools, and all dependencies
+#   required to run the Shiny application and reproduce all analyses.
+#
+# NOTE: rGenomeTracks (Bioconductor) is NOT available on conda channels
+#   and must be installed separately via install.R (BiocManager).
+#
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate rgenometrackui
+#   Rscript install.R
+# =============================================================================
+
+name: rgenometrackui
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  # ---------------------------------------------------------------------------
+  # Core system tools
+  # ---------------------------------------------------------------------------
+  - mamba                          # faster package solver (recommended)
+
+  # ---------------------------------------------------------------------------
+  # R base and essentials
+  # ---------------------------------------------------------------------------
+  - r-base>=4.2                    # R language runtime
+  - r-essentials                   # curated set of common R packages
+
+  # ---------------------------------------------------------------------------
+  # R packages — Shiny application framework
+  # ---------------------------------------------------------------------------
+  - r-shiny>=1.7                   # Shiny web framework
+  - r-bslib>=0.5                   # Bootstrap theming for Shiny
+  - r-shinyjs>=2.1                 # JavaScript utilities for Shiny
+  - r-shinyfiles>=0.9              # File system access for Shiny
+  - r-dt>=0.27                     # Interactive DataTables
+
+  # ---------------------------------------------------------------------------
+  # R packages — Data manipulation and I/O
+  # ---------------------------------------------------------------------------
+  - r-jsonlite>=1.8                # JSON parsing and generation
+  - r-yaml>=2.3                    # YAML parsing and generation
+  - r-fs>=1.6                      # File system utilities
+  - r-readr>=2.1                   # Fast file reading
+
+  # ---------------------------------------------------------------------------
+  # R packages — Process execution and parallelism
+  # ---------------------------------------------------------------------------
+  - r-processx>=3.8                # Execute external processes safely
+  - r-callr>=3.7                   # Call R from R in a clean session
+
+  # ---------------------------------------------------------------------------
+  # R packages — Python interop (required by rGenomeTracks)
+  # ---------------------------------------------------------------------------
+  - r-reticulate>=1.28             # Python-R interface (used by rGenomeTracks)
+
+  # ---------------------------------------------------------------------------
+  # R packages — Development and testing
+  # ---------------------------------------------------------------------------
+  - r-testthat>=3.1                # Unit testing framework
+  - r-devtools>=2.4                # Package development utilities
+  - r-remotes>=2.4                 # Install R packages from GitHub/Bioconductor
+  - r-biocmanager>=1.30            # Bioconductor package manager (for rGenomeTracks)
+  - r-optparse>=1.7                # Command-line argument parsing for R scripts
+
+  # ---------------------------------------------------------------------------
+  # R packages — Utilities
+  # ---------------------------------------------------------------------------
+  - r-stringr>=1.5                 # String manipulation
+  - r-glue>=1.6                    # String interpolation
+  - r-purrr>=1.0                   # Functional programming tools
+  - r-dplyr>=1.1                   # Data manipulation
+  - r-lubridate>=1.9               # Date/time handling
+  - r-digest>=0.6                  # Hashing (run deduplication)
+  - r-zip>=2.3                     # ZIP archive creation (export runs)
+
+  # ---------------------------------------------------------------------------
+  # Python runtime
+  # ---------------------------------------------------------------------------
+  - python>=3.9                    # Python runtime (required by pyGenomeTracks)
+  - pip                            # Python package installer
+
+  # ---------------------------------------------------------------------------
+  # pyGenomeTracks and its Python dependencies
+  # (installed via bioconda — includes all Python deps automatically)
+  # ---------------------------------------------------------------------------
+  - pygenometracks>=3.8            # pyGenomeTracks — genome visualization engine
+
+  # ---------------------------------------------------------------------------
+  # X11 libraries (required by r-imager → rGenomeTracks, macOS without XQuartz)
+  # ---------------------------------------------------------------------------
+  - xorg-libx11                    # libX11 — X Window System client library
+  - xorg-libsm                     # libSM — Session Management library
+  - xorg-libice                    # libICE — Inter-Client Exchange library
+  - xorg-libxext                   # libXext — X Extension library
+
+  # ---------------------------------------------------------------------------
+  # R package compilation dependencies (tiff, jpeg, igraph, imager)
+  # ---------------------------------------------------------------------------
+  - libtiff                        # libtiff headers + lib (r-tiff)
+  - libjpeg-turbo                  # libjpeg headers + lib (r-jpeg)
+  - libpng                         # libpng headers + lib
+  - fftw                           # FFTW — Fast Fourier Transform (r-imager)
+  - glpk                           # GLPK — linear programming (r-igraph)
+  - libxml2                        # libxml2 — XML parsing (r-igraph)
+  - gmp                            # GMP — arbitrary precision (r-igraph)
+  - cmake                          # CMake — build system (r-igraph)
+
+  # ---------------------------------------------------------------------------
+  # Bioinformatics tools
+  # ---------------------------------------------------------------------------
+  - bedtools>=2.30                 # BEDTools — genome arithmetic
+  - samtools>=1.15                 # SAMtools — sequence alignment utilities
+  - htslib>=1.15                   # HTSlib — C library for HTS data formats
+
+  # ---------------------------------------------------------------------------
+  # Python packages (additional, via pip if not in bioconda/conda-forge)
+  # ---------------------------------------------------------------------------
+  - pip:
+      - pyBigWig>=0.3.18           # BigWig/BigBed reading (Python)
+      - pyfaidx>=0.7.1             # FASTA indexing

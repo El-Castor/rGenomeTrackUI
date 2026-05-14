@@ -1,0 +1,412 @@
+# =============================================================================
+# rGenomeTrackUI — Dependency specification and status
+# =============================================================================
+# Version      : 1.0.0
+# Last updated : 2026-05-12
+#
+# Description:
+#   Machine-readable specification of all dependencies required by
+#   rGenomeTrackUI. Used by the application's Settings/Dependencies page
+#   to display environment status, and by setup scripts for validation.
+#
+# Notes:
+#   - "conda_package" is the package name as available in conda channels
+#   - "r_package" is the name as used in R (install.packages / BiocManager)
+#   - "pip_package" is the PyPI name if different from import name
+#   - "check_command" is a shell command to quickly verify availability
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Conda environment metadata
+# ---------------------------------------------------------------------------
+conda_env:
+  name: rgenometrackui
+  description: >
+    Isolated Conda environment for rGenomeTrackUI.
+    Contains R, Python, pyGenomeTracks, BEDTools, and all application
+    dependencies. Created from environment.yml.
+  channels:
+    - conda-forge
+    - bioconda
+    - defaults
+
+# ---------------------------------------------------------------------------
+# Runtime version requirements
+# ---------------------------------------------------------------------------
+requirements:
+  r:
+    min_version: "4.2.0"
+    recommended_version: "4.4.0"
+  python:
+    min_version: "3.9.0"
+    recommended_version: "3.11.0"
+  pygenometracks:
+    min_version: "3.8"
+    recommended_version: "3.9"
+  bedtools:
+    min_version: "2.30.0"
+
+# ---------------------------------------------------------------------------
+# R packages
+# ---------------------------------------------------------------------------
+r_packages:
+
+  # Shiny framework
+  - name: shiny
+    source: CRAN
+    conda_package: r-shiny
+    required: true
+    min_version: "1.7.0"
+    description: "R Shiny web application framework"
+
+  - name: bslib
+    source: CRAN
+    conda_package: r-bslib
+    required: true
+    min_version: "0.5.0"
+    description: "Bootstrap theming for Shiny"
+
+  - name: shinyjs
+    source: CRAN
+    conda_package: r-shinyjs
+    required: true
+    min_version: "2.1.0"
+    description: "JavaScript utilities for Shiny"
+
+  - name: shinyFiles
+    source: CRAN
+    conda_package: r-shinyfiles
+    required: true
+    min_version: "0.9.0"
+    description: "File system browser for Shiny"
+
+  - name: DT
+    source: CRAN
+    conda_package: r-dt
+    required: true
+    min_version: "0.27.0"
+    description: "Interactive DataTables for Shiny"
+
+  - name: sortable
+    source: CRAN
+    conda_package: r-sortable
+    required: true
+    description: "Drag-and-drop sortable lists for Shiny (track ordering)"
+
+  - name: waiter
+    source: CRAN
+    conda_package: ~
+    required: false
+    description: "Loading screens for Shiny"
+
+  - name: shinyWidgets
+    source: CRAN
+    conda_package: ~
+    required: false
+    description: "Extended widget library for Shiny"
+
+  - name: shinyFeedback
+    source: CRAN
+    conda_package: ~
+    required: false
+    description: "Input validation feedback for Shiny"
+
+  # Data I/O
+  - name: jsonlite
+    source: CRAN
+    conda_package: r-jsonlite
+    required: true
+    min_version: "1.8.0"
+    description: "JSON serialization and deserialization"
+
+  - name: yaml
+    source: CRAN
+    conda_package: r-yaml
+    required: true
+    min_version: "2.3.0"
+    description: "YAML parsing and generation"
+
+  - name: fs
+    source: CRAN
+    conda_package: r-fs
+    required: true
+    min_version: "1.6.0"
+    description: "Cross-platform file system operations"
+
+  - name: readr
+    source: CRAN
+    conda_package: r-readr
+    required: false
+    description: "Fast file reading"
+
+  - name: zip
+    source: CRAN
+    conda_package: r-zip
+    required: true
+    description: "ZIP archive creation for run export"
+
+  # Process execution
+  - name: processx
+    source: CRAN
+    conda_package: r-processx
+    required: true
+    min_version: "3.8.0"
+    description: "Execute external processes without blocking Shiny"
+
+  - name: callr
+    source: CRAN
+    conda_package: r-callr
+    required: true
+    min_version: "3.7.0"
+    description: "Call R from R in an isolated clean session"
+
+  # Python interop (required by rGenomeTracks)
+  - name: reticulate
+    source: CRAN
+    conda_package: r-reticulate
+    required: true
+    min_version: "1.28.0"
+    description: "Python-R interface (used internally by rGenomeTracks)"
+
+  # Bioinformatics — MAIN DEPENDENCY
+  - name: rGenomeTracks
+    source: Bioconductor
+    conda_package: ~       # NOT available on conda — must use BiocManager
+    required: true
+    install_command: "BiocManager::install('rGenomeTracks')"
+    description: >
+      R wrapper for pyGenomeTracks. Provides track_bed(), track_bigwig(),
+      track_gtf(), track_domains(), track_links(), track_hic_matrix(), etc.
+      Combines tracks with + operator, renders with plot_gtracks().
+
+  - name: rGenomeTracksData
+    source: Bioconductor
+    conda_package: ~       # NOT available on conda — must use BiocManager
+    required: false
+    install_command: "BiocManager::install('rGenomeTracksData')"
+    description: "Example datasets for rGenomeTracks vignettes"
+
+  # Development tools
+  - name: BiocManager
+    source: CRAN
+    conda_package: r-biocmanager
+    required: true
+    min_version: "1.30.0"
+    description: "Bioconductor package manager"
+
+  - name: testthat
+    source: CRAN
+    conda_package: r-testthat
+    required: true
+    min_version: "3.1.0"
+    description: "Unit testing framework"
+
+  - name: devtools
+    source: CRAN
+    conda_package: r-devtools
+    required: false
+    description: "Package development utilities"
+
+  - name: remotes
+    source: CRAN
+    conda_package: r-remotes
+    required: true
+    description: "Install R packages from remote sources"
+
+  - name: optparse
+    source: CRAN
+    conda_package: r-optparse
+    required: true
+    description: "Command-line argument parsing for R scripts"
+
+  # Utility
+  - name: stringr
+    source: CRAN
+    conda_package: r-stringr
+    required: false
+    description: "String manipulation utilities"
+
+  - name: glue
+    source: CRAN
+    conda_package: r-glue
+    required: false
+    description: "String interpolation"
+
+  - name: purrr
+    source: CRAN
+    conda_package: r-purrr
+    required: false
+    description: "Functional programming tools"
+
+  - name: dplyr
+    source: CRAN
+    conda_package: r-dplyr
+    required: false
+    description: "Data manipulation"
+
+  - name: lubridate
+    source: CRAN
+    conda_package: r-lubridate
+    required: false
+    description: "Date/time handling"
+
+  - name: digest
+    source: CRAN
+    conda_package: r-digest
+    required: false
+    description: "Hashing utilities for run deduplication"
+
+# ---------------------------------------------------------------------------
+# Python packages
+# ---------------------------------------------------------------------------
+python_packages:
+
+  - name: pygenometracks
+    pip_package: pyGenomeTracks
+    conda_package: pygenometracks
+    conda_channel: bioconda
+    required: true
+    min_version: "3.8"
+    check_command: "pyGenomeTracks --version"
+    description: >
+      Core genome track rendering engine. Called by rGenomeTracks via
+      reticulate. Also usable directly from the shell for reproducible scripts.
+
+  - name: numpy
+    pip_package: numpy
+    conda_package: numpy
+    required: true
+    min_version: "1.20.0"
+    description: "Numerical array computing (pyGenomeTracks dependency)"
+
+  - name: matplotlib
+    pip_package: matplotlib
+    conda_package: matplotlib
+    required: true
+    min_version: "3.1.1"
+    max_version: "3.6.2"   # pyGenomeTracks has upper bound
+    notes: "pyGenomeTracks requires matplotlib <= 3.6.2"
+    description: "Plot rendering backend"
+
+  - name: pyBigWig
+    pip_package: pyBigWig
+    conda_package: pybigwig
+    conda_channel: bioconda
+    required: true
+    min_version: "0.3.16"
+    description: "BigWig/BigBed file reading"
+
+  - name: pysam
+    pip_package: pysam
+    conda_package: pysam
+    conda_channel: bioconda
+    required: true
+    min_version: "0.14.0"
+    description: "SAM/BAM/CRAM file access (pyGenomeTracks dependency)"
+
+  - name: gffutils
+    pip_package: gffutils
+    conda_package: gffutils
+    conda_channel: bioconda
+    required: true
+    min_version: "0.9.0"
+    description: "GFF/GTF parsing (pyGenomeTracks dependency)"
+
+  - name: pybedtools
+    pip_package: pybedtools
+    conda_package: pybedtools
+    conda_channel: bioconda
+    required: true
+    min_version: "0.8.1"
+    description: "BEDTools Python interface (pyGenomeTracks dependency)"
+
+  - name: intervaltree
+    pip_package: intervaltree
+    conda_package: intervaltree
+    required: true
+    min_version: "2.1.0"
+    description: "Interval tree data structure (pyGenomeTracks dependency)"
+
+  - name: tqdm
+    pip_package: tqdm
+    conda_package: tqdm
+    required: true
+    min_version: "4.20.0"
+    description: "Progress bars"
+
+  - name: pyfaidx
+    pip_package: pyfaidx
+    conda_package: pyfaidx
+    required: false
+    min_version: "0.1.3"
+    description: "FASTA indexing (optional, for fasta tracks)"
+
+  - name: bx-python
+    pip_package: bx-python
+    conda_package: bx-python
+    conda_channel: bioconda
+    required: true
+    min_version: "0.8.13"
+    description: "Genome interval operations (pyGenomeTracks dependency)"
+
+  - name: hicmatrix
+    pip_package: hicmatrix
+    conda_package: hicmatrix
+    conda_channel: bioconda
+    required: false
+    min_version: "15"
+    description: "Hi-C matrix handling (required for hic_matrix track type)"
+
+# ---------------------------------------------------------------------------
+# External system tools
+# ---------------------------------------------------------------------------
+external_tools:
+
+  - name: bedtools
+    conda_package: bedtools
+    conda_channel: bioconda
+    required: true
+    min_version: "2.30.0"
+    check_command: "bedtools --version"
+    description: >
+      Genome arithmetic suite. Required by pyGenomeTracks >= 3.5 and by
+      rGenomeTrackUI for light BED validation and interval operations.
+
+  - name: samtools
+    conda_package: samtools
+    conda_channel: bioconda
+    required: false
+    min_version: "1.15.0"
+    check_command: "samtools --version"
+    description: "SAM/BAM/CRAM file utilities (optional but recommended)"
+
+  - name: htslib
+    conda_package: htslib
+    conda_channel: bioconda
+    required: false
+    check_command: "htsfile --version"
+    description: "C library for HTS data formats (dependency of samtools/pysam)"
+
+# ---------------------------------------------------------------------------
+# Environment validation checks performed at application startup
+# ---------------------------------------------------------------------------
+startup_checks:
+  - check: "r_version"
+    min: "4.2.0"
+    critical: true
+
+  - check: "rGenomeTracks_loadable"
+    critical: true
+
+  - check: "pygenometracks_in_path"
+    critical: true
+
+  - check: "bedtools_in_path"
+    critical: true
+
+  - check: "reticulate_python_available"
+    critical: false  # Warning only — may depend on env activation
+
+  - check: "conda_env_active"
+    expected: "rgenometrackui"
+    critical: false  # Warning only — app can run but isolation not guaranteed

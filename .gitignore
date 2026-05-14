@@ -1,0 +1,33 @@
+# R
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+*.Rproj
+
+# Conda / env
+.env
+.env.*
+.venv/
+__pycache__/
+
+# Logs
+logs/*.log
+logs/*.txt
+
+# Runs and generated user data
+projects/*/runs/
+projects/*/inputs/raw/
+projects/*/inputs/linked/
+projects/*/exports/
+projects/*/preview/
+
+# Keep structure
+!projects/.gitkeep
+!logs/.gitkeep
+
+# macOS
+.DS_Store
+
+# Generated archives
+*.zip

@@ -1,0 +1,5 @@
+chr1	1000	2000	H3K4me3_peak_1	500	+
+chr1	3500	4200	H3K4me3_peak_2	320	+
+chr1	6000	6800	H3K27ac_peak_1	750	+
+chr1	9000	9500	H3K4me1_peak_1	200	-
+chr1	12000	13000	CTCF_site_1	900	-
