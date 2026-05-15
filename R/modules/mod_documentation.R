@@ -95,52 +95,52 @@ mod_documentation_ui <- function(id) {
             shiny::tags$div(class = "doc-section-title",
               shiny::icon("route"), " \u00c9tapes du workflow"),
             shiny::p("Suivez ces \u00e9tapes dans l'ordre pour produire vos premi\u00e8res figures :"),
-            shiny::div(class = "doc-workflow-step",
-              shiny::div(class = "doc-step-num", "1"),
-              shiny::div(
-                shiny::tags$strong("Dashboard \u2014 V\u00e9rifier les d\u00e9pendances"),
+            shiny::div(class = "doc-step-card",
+              shiny::div(class = "doc-step-number", "1"),
+              shiny::div(class = "doc-step-content",
+                shiny::tags$h4("Dashboard \u2014 V\u00e9rifier les d\u00e9pendances"),
                 shiny::p("Depuis l'onglet Dashboard, v\u00e9rifiez que tous les statuts sont verts.
                    Si pyGenomeTracks ou BEDTools sont manquants, corrigez l'environnement conda
                    avant de continuer.")
               )
             ),
-            shiny::div(class = "doc-workflow-step",
-              shiny::div(class = "doc-step-num", "2"),
-              shiny::div(
-                shiny::tags$strong("Projets \u2014 Cr\u00e9er ou ouvrir un projet"),
+            shiny::div(class = "doc-step-card",
+              shiny::div(class = "doc-step-number", "2"),
+              shiny::div(class = "doc-step-content",
+                shiny::tags$h4("Projets \u2014 Cr\u00e9er ou ouvrir un projet"),
                 shiny::p("Un projet = un dossier sur disque contenant les fichiers de donn\u00e9es, la config,
                    et les r\u00e9sultats. Cr\u00e9ez un nouveau projet ou ouvrez-en un existant.")
               )
             ),
-            shiny::div(class = "doc-workflow-step",
-              shiny::div(class = "doc-step-num", "3"),
-              shiny::div(
-                shiny::tags$strong("Inputs \u2014 Importer vos fichiers de donn\u00e9es"),
+            shiny::div(class = "doc-step-card",
+              shiny::div(class = "doc-step-number", "3"),
+              shiny::div(class = "doc-step-content",
+                shiny::tags$h4("Inputs \u2014 Importer vos fichiers de donn\u00e9es"),
                 shiny::p("Uploadez ou r\u00e9f\u00e9rencez vos fichiers (BigWig, BED, GTF\u2026).
                    Consultez l'onglet 'Formats & templates' pour v\u00e9rifier le format attendu
                    et t\u00e9l\u00e9charger un template si besoin.")
               )
             ),
-            shiny::div(class = "doc-workflow-step",
-              shiny::div(class = "doc-step-num", "4"),
-              shiny::div(
-                shiny::tags$strong("Track Builder \u2014 Configurer les pistes"),
+            shiny::div(class = "doc-step-card",
+              shiny::div(class = "doc-step-number", "4"),
+              shiny::div(class = "doc-step-content",
+                shiny::tags$h4("Track Builder \u2014 Configurer les pistes"),
                 shiny::p("Ajoutez des tracks, s\u00e9lectionnez leurs fichiers de donn\u00e9es, et ajustez
                    les param\u00e8tres visuels (couleur, hauteur, type d'affichage\u2026).")
               )
             ),
-            shiny::div(class = "doc-workflow-step",
-              shiny::div(class = "doc-step-num", "5"),
-              shiny::div(
-                shiny::tags$strong("R\u00e9gions & Figure \u2014 D\u00e9finir la r\u00e9gion \u00e0 visualiser"),
+            shiny::div(class = "doc-step-card",
+              shiny::div(class = "doc-step-number", "5"),
+              shiny::div(class = "doc-step-content",
+                shiny::tags$h4("R\u00e9gions & Figure \u2014 D\u00e9finir la r\u00e9gion \u00e0 visualiser"),
                 shiny::p("Saisissez une r\u00e9gion au format ", shiny::code("chr:start-end"),
                   " ou uploadez un fichier BED multi-r\u00e9gions. Ajustez la taille et le titre de la figure.")
               )
             ),
-            shiny::div(class = "doc-workflow-step",
-              shiny::div(class = "doc-step-num", "6"),
-              shiny::div(
-                shiny::tags$strong("Aper\u00e7u config \u2192 Run \u2014 V\u00e9rifier et lancer"),
+            shiny::div(class = "doc-step-card",
+              shiny::div(class = "doc-step-number", "6"),
+              shiny::div(class = "doc-step-content",
+                shiny::tags$h4("Aper\u00e7u config \u2192 Run \u2014 V\u00e9rifier et lancer"),
                 shiny::p("Consultez l'aper\u00e7u de la configuration g\u00e9n\u00e9r\u00e9e, puis lancez pyGenomeTracks
                    depuis l'onglet Run. Les figures apparaissent dans l'onglet R\u00e9sultats.")
               )
@@ -198,8 +198,8 @@ mod_documentation_ui <- function(id) {
           shiny::tags$div(class = "rt-card",
             shiny::tags$div(class = "doc-section-title",
               shiny::icon("vials"), " Exemples de cas d'usage typiques"),
-            shiny::div(class = "doc-use-case",
-              shiny::div(class = "doc-use-case-title", shiny::icon("dna"), " Visualisation d'un locus ChIP-seq"),
+            shiny::div(class = "doc-usecase-card",
+              shiny::div(class = "doc-usecase-title", shiny::icon("dna"), " Visualisation d'un locus ChIP-seq"),
               shiny::p("Superposer plusieurs tracks d'enrichissement H3K27ac avec annotation de g\u00e8nes."),
               shiny::tags$ul(
                 shiny::tags$li("1 track GTF (g\u00e8nes)"),
@@ -208,8 +208,8 @@ mod_documentation_ui <- function(id) {
                 shiny::tags$li("R\u00e9gion : locus d'int\u00e9r\u00eat, typiquement 50 kb\u2013500 kb")
               )
             ),
-            shiny::div(class = "doc-use-case",
-              shiny::div(class = "doc-use-case-title", shiny::icon("project-diagram"), " Structure chromatinienne Hi-C"),
+            shiny::div(class = "doc-usecase-card",
+              shiny::div(class = "doc-usecase-title", shiny::icon("project-diagram"), " Structure chromatinienne Hi-C"),
               shiny::p("Visualiser un domaine TAD avec les interactions intra-domaines."),
               shiny::tags$ul(
                 shiny::tags$li("1 track Domains (TAD boundaries)"),
@@ -218,8 +218,8 @@ mod_documentation_ui <- function(id) {
                 shiny::tags$li("R\u00e9gion : 1\u20135 Mb autour du locus")
               )
             ),
-            shiny::div(class = "doc-use-case",
-              shiny::div(class = "doc-use-case-title", shiny::icon("chart-area"), " Profil d'expression RNA-seq"),
+            shiny::div(class = "doc-usecase-card",
+              shiny::div(class = "doc-usecase-title", shiny::icon("chart-area"), " Profil d'expression RNA-seq"),
               shiny::p("Afficher la couverture RNA-seq sur un g\u00e8ne ou une r\u00e9gion."),
               shiny::tags$ul(
                 shiny::tags$li("1\u20132 tracks BigWig (coverage RNA-seq sens/antisens)"),
@@ -228,8 +228,8 @@ mod_documentation_ui <- function(id) {
                 shiny::tags$li("R\u00e9gion : g\u00e8ne \u00b1 5 kb")
               )
             ),
-            shiny::div(class = "doc-use-case",
-              shiny::div(class = "doc-use-case-title", shiny::icon("map-marked"), " Multi-r\u00e9gions comparatives"),
+            shiny::div(class = "doc-usecase-card",
+              shiny::div(class = "doc-usecase-title", shiny::icon("map-marked"), " Multi-r\u00e9gions comparatives"),
               shiny::p("Produire automatiquement une figure par r\u00e9gion dans un fichier BED."),
               shiny::tags$ul(
                 shiny::tags$li("Fichier BED multi-lignes dans 'R\u00e9gions & Figure'"),
@@ -237,8 +237,8 @@ mod_documentation_ui <- function(id) {
                 shiny::tags$li("Utile pour comparer des promoteurs ou des enhancers")
               )
             ),
-            shiny::div(class = "doc-use-case",
-              shiny::div(class = "doc-use-case-title", shiny::icon("crosshairs"), " Variants/mutations ponctuelles"),
+            shiny::div(class = "doc-usecase-card",
+              shiny::div(class = "doc-usecase-title", shiny::icon("crosshairs"), " Variants/mutations ponctuelles"),
               shiny::p("Mettre en \u00e9vidence des positions pr\u00e9cises (SNPs, indels, breakpoints)."),
               shiny::tags$ul(
                 shiny::tags$li("Tracks BigWig ou BedGraph (signal dans la r\u00e9gion)"),
@@ -461,7 +461,7 @@ mod_documentation_server <- function(id) {
       ) |>
         DT::formatStyle(
           "Binaire",
-          color = DT::styleEqual(c("Oui", "Non"), c("#856404", "#155724")),
+          color = DT::styleEqual(c("Oui", "Non"), c("#fbbf24", "#94a3b8")),
           fontWeight = "bold"
         )
     }, server = FALSE)
