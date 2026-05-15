@@ -582,20 +582,19 @@ validate_region_against_index <- function(region_str, chrom_index, active_only =
 # 8. inspect_gff_genes (gene picker support)
 # -----------------------------------------------------------------------------
 
-#' Build a simplified gene/feature index from a GFF/GFF3/GTF file
+#' Build a complete gene/feature index from a GFF/GFF3/GTF file
 #'
-#' Returns the first max_genes features of type gene/mRNA/transcript with
-#' an ID or Name attribute, for use in the gene picker UI.
+#' Parses the entire file without any gene count limit. Extracts all features
+#' matching feature_types, with ID, Name, locus_tag (GFF3) or gene_id,
+#' gene_name (GTF). Returns a data.frame suitable for server-side selectize.
 #'
-#' @param file_path path to the GFF file
-#' @param max_genes maximum number of genes to return
+#' @param file_path path to the GFF/GFF3/GTF file
 #' @param feature_types character vector of feature types to include
-#' @return data.frame(gene_id, name, chrom, start, end) sorted by chrom+start,
-#'   or NULL on error
+#' @return data.frame(gene_id, name, locus_tag, chrom, start, end, strand,
+#'   searchable_label, source_file) sorted by chrom+start, or NULL on error
 #' @export
 inspect_gff_genes <- function(file_path,
-                              max_genes    = 5000L,
-                              feature_types = c("gene", "mRNA", "transcript")) {
+                              feature_types = c("gene", "mRNA", "transcript", "pseudogene")) {
   tryCatch({
     con  <- file(file_path, "r")
     on.exit(close(con), add = TRUE)
@@ -605,7 +604,6 @@ inspect_gff_genes <- function(file_path,
       line <- readLines(con, n = 1L, warn = FALSE)
       if (length(line) == 0L) break
       if (startsWith(line, "#") || nchar(trimws(line)) == 0L) next
-      if (length(rows) >= max_genes) next
 
       cols <- strsplit(line, "\t")[[1]]
       if (length(cols) < 9L) next
@@ -613,38 +611,71 @@ inspect_gff_genes <- function(file_path,
       feat <- cols[3]
       if (!feat %in% feature_types) next
 
-      chrom <- cols[1]
-      s <- suppressWarnings(as.integer(cols[4]))
-      e <- suppressWarnings(as.integer(cols[5]))
+      chrom  <- cols[1]
+      s      <- suppressWarnings(as.integer(cols[4]))
+      e      <- suppressWarnings(as.integer(cols[5]))
+      strand <- if (length(cols) >= 7L && nchar(cols[7]) == 1L &&
+                    cols[7] %in% c("+", "-", ".")) cols[7] else "."
       if (is.na(s) || is.na(e)) next
+
       attr_str <- cols[9]
 
-      # Parse ID= and Name= from GFF3 attributes
-      id_m   <- regmatches(attr_str, regexpr("(?i)\\bID=([^;]+)", attr_str, perl = TRUE))
-      name_m <- regmatches(attr_str, regexpr("(?i)\\bName=([^;]+)", attr_str, perl = TRUE))
-      # Also handle GTF gene_id and gene_name
-      gid_m  <- regmatches(attr_str, regexpr('gene_id "([^"]+)"', attr_str, perl = TRUE))
-      gnm_m  <- regmatches(attr_str, regexpr('gene_name "([^"]+)"', attr_str, perl = TRUE))
+      # GFF3 attributes: ID=, Name=, locus_tag=
+      id_m  <- regmatches(attr_str, regexpr("(?i)\\bID=([^;]+)",        attr_str, perl = TRUE))
+      nm_m  <- regmatches(attr_str, regexpr("(?i)\\bName=([^;]+)",      attr_str, perl = TRUE))
+      lt_m  <- regmatches(attr_str, regexpr("(?i)\\blocus_tag=([^;]+)", attr_str, perl = TRUE))
+      # GTF attributes: gene_id "...", gene_name "..."
+      gid_m <- regmatches(attr_str, regexpr('gene_id "([^"]+)"',   attr_str, perl = TRUE))
+      gnm_m <- regmatches(attr_str, regexpr('gene_name "([^"]+)"', attr_str, perl = TRUE))
 
-      gene_id <- if (length(id_m) > 0L)  sub("^ID=", "", id_m, ignore.case = TRUE)
-                 else if (length(gid_m) > 0L) sub('^gene_id "', "", gsub('"', "", gid_m))
+      gene_id <- if (length(id_m) > 0L)
+                   sub("(?i)^ID=", "", id_m, perl = TRUE)
+                 else if (length(gid_m) > 0L)
+                   gsub('"', "", sub('^gene_id ', "", gid_m))
                  else paste0(feat, "_", chrom, "_", s)
-      name    <- if (length(name_m) > 0L) sub("^Name=", "", name_m, ignore.case = TRUE)
-                 else if (length(gnm_m) > 0L) sub('^gene_name "', "", gsub('"', "", gnm_m))
+
+      name    <- if (length(nm_m) > 0L)
+                   sub("(?i)^Name=", "", nm_m, perl = TRUE)
+                 else if (length(gnm_m) > 0L)
+                   gsub('"', "", sub('^gene_name ', "", gnm_m))
                  else gene_id
 
+      locus_tag <- if (length(lt_m) > 0L)
+                     sub("(?i)^locus_tag=", "", lt_m, perl = TRUE)
+                   else NA_character_
+
+      # Searchable label: all identifiers + coordinates + strand
+      parts <- unique(c(gene_id,
+                        if (!is.na(name) && name != gene_id) name else NULL,
+                        if (!is.na(locus_tag)) locus_tag else NULL))
+      searchable_label <- paste0(
+        paste(parts, collapse = " | "),
+        "  [", chrom, ":", s, "-", e, " ", strand, "]"
+      )
+
       rows[[length(rows) + 1L]] <- list(
-        gene_id = gene_id, name = name, chrom = chrom, start = s, end = e
+        gene_id          = gene_id,
+        name             = name,
+        locus_tag        = if (!is.na(locus_tag)) locus_tag else "",
+        chrom            = chrom,
+        start            = s,
+        end              = e,
+        strand           = strand,
+        searchable_label = searchable_label
       )
     }
 
     if (length(rows) == 0L) return(NULL)
     df <- data.frame(
-      gene_id = vapply(rows, `[[`, character(1L), "gene_id"),
-      name    = vapply(rows, `[[`, character(1L), "name"),
-      chrom   = vapply(rows, `[[`, character(1L), "chrom"),
-      start   = vapply(rows, `[[`, integer(1L),   "start"),
-      end     = vapply(rows, `[[`, integer(1L),   "end"),
+      gene_id          = vapply(rows, `[[`, character(1L), "gene_id"),
+      name             = vapply(rows, `[[`, character(1L), "name"),
+      locus_tag        = vapply(rows, `[[`, character(1L), "locus_tag"),
+      chrom            = vapply(rows, `[[`, character(1L), "chrom"),
+      start            = vapply(rows, `[[`, integer(1L),   "start"),
+      end              = vapply(rows, `[[`, integer(1L),   "end"),
+      strand           = vapply(rows, `[[`, character(1L), "strand"),
+      searchable_label = vapply(rows, `[[`, character(1L), "searchable_label"),
+      source_file      = file_path,
       stringsAsFactors = FALSE
     )
     df[order(df$chrom, df$start), ]
@@ -653,4 +684,97 @@ inspect_gff_genes <- function(file_path,
                     basename(file_path), conditionMessage(e)))
     NULL
   })
+}
+
+# -----------------------------------------------------------------------------
+# 9. Gene index cache
+# -----------------------------------------------------------------------------
+
+#' Save gene index to project metadata cache
+#'
+#' @param gene_df data.frame from inspect_gff_genes()
+#' @param gff_file_path absolute path to the GFF/GFF3/GTF source file
+#' @param gff_file_id file_id from the registry (used as cache key)
+#' @param project_config project config list (must have $project_path)
+#' @export
+save_gene_index_cache <- function(gene_df, gff_file_path, gff_file_id, project_config) {
+  tryCatch({
+    cache_dir  <- file.path(project_config$project_path, "metadata")
+    if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
+    cache_path <- file.path(cache_dir,
+                            paste0("gene_index_", gff_file_id, ".json"))
+    fi <- file.info(gff_file_path)
+    cache_obj <- list(
+      generated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      version      = "2",
+      source_file  = gff_file_path,
+      file_mtime   = as.numeric(fi$mtime),
+      file_size    = as.numeric(fi$size),
+      n_genes      = nrow(gene_df),
+      genes        = gene_df
+    )
+    jsonlite::write_json(cache_obj, cache_path, auto_unbox = TRUE, pretty = FALSE)
+    message(sprintf("[genome_index] Gene index saved: %d genes \u2192 %s",
+                    nrow(gene_df), basename(cache_path)))
+    invisible(cache_path)
+  }, error = function(e) {
+    warning(sprintf("[genome_index] Could not save gene cache: %s", conditionMessage(e)))
+    invisible(NULL)
+  })
+}
+
+#' Load gene index from project metadata cache
+#'
+#' @param gff_file_id file_id used when saving the cache
+#' @param project_config project config list
+#' @return cache list (with $genes data.frame and $source_file) or NULL
+#' @export
+load_gene_index_cache <- function(gff_file_id, project_config) {
+  cache_path <- file.path(project_config$project_path, "metadata",
+                          paste0("gene_index_", gff_file_id, ".json"))
+  if (!file.exists(cache_path)) return(NULL)
+  tryCatch({
+    cache <- jsonlite::read_json(cache_path, simplifyVector = TRUE)
+    if (is.null(cache$genes) || !is.data.frame(cache$genes)) return(NULL)
+    cache
+  }, error = function(e) NULL)
+}
+
+#' Check whether the gene index cache is still valid
+#'
+#' Compares the GFF file's current mtime against the one stored in cache.
+#'
+#' @param cache result of load_gene_index_cache()
+#' @param gff_file_path absolute path to the GFF source file
+#' @return TRUE if cache is valid, FALSE otherwise
+#' @export
+is_gene_index_cache_valid <- function(cache, gff_file_path) {
+  if (is.null(cache)) return(FALSE)
+  if (is.null(cache$source_file) || !identical(cache$source_file, gff_file_path)) return(FALSE)
+  if (!file.exists(gff_file_path)) return(FALSE)
+  cached_mtime  <- suppressWarnings(as.numeric(cache$file_mtime))
+  current_mtime <- as.numeric(file.info(gff_file_path)$mtime)
+  if (is.na(cached_mtime)) return(FALSE)
+  abs(current_mtime - cached_mtime) <= 1
+}
+
+# -----------------------------------------------------------------------------
+# 10. selectize helpers
+# -----------------------------------------------------------------------------
+
+#' Build named choices for server-side gene selectize
+#'
+#' @param gene_df data.frame from inspect_gff_genes()
+#' @return named character vector(label -> row_index)
+#' @export
+build_gene_selectize_choices <- function(gene_df) {
+  if (is.null(gene_df) || !is.data.frame(gene_df) || nrow(gene_df) == 0L) {
+    return(setNames(character(0), character(0)))
+  }
+  labels <- if ("searchable_label" %in% names(gene_df)) {
+    gene_df$searchable_label
+  } else {
+    paste0(gene_df$name, "  [", gene_df$chrom, ":", gene_df$start, "-", gene_df$end, "]")
+  }
+  stats::setNames(as.character(seq_len(nrow(gene_df))), labels)
 }

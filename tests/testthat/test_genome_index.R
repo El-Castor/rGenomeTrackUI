@@ -383,6 +383,80 @@ test_that("inspect_gff_genes extracts gene features with GFF3 attributes", {
   expect_true(nrow(gi) >= 2L)
   expect_true("gene_id" %in% names(gi))
   expect_true("Bradi1g00010" %in% gi$gene_id || "gene1" %in% gi$name)
+  # New columns present
+  expect_true("strand"           %in% names(gi))
+  expect_true("locus_tag"        %in% names(gi))
+  expect_true("searchable_label" %in% names(gi))
+  expect_true("source_file"      %in% names(gi))
+  # strand values correct
+  bd1_gene <- gi[gi$gene_id == "Bradi1g00010", ]
+  expect_equal(bd1_gene$strand, "+")
+  bd2_gene <- gi[gi$gene_id == "Bradi2g00015", ]
+  expect_equal(bd2_gene$strand, "-")
+  # searchable_label contains gene_id
+  expect_true(any(grepl("Bradi1g00010", gi$searchable_label)))
+})
+
+test_that("inspect_gff_genes extracts locus_tag from GFF3", {
+  tmp <- tempfile(fileext = ".gff3")
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t100\t500\t.\t+\t.\tID=gene001;Name=GeneA;locus_tag=LT001"
+  ), tmp)
+  on.exit(unlink(tmp))
+
+  gi <- inspect_gff_genes(tmp)
+  expect_false(is.null(gi))
+  expect_equal(gi$locus_tag[1L], "LT001")
+  expect_true(grepl("LT001", gi$searchable_label[1L]))
+})
+
+test_that("inspect_gff_genes indexes ALL genes — no 5000 cap", {
+  tmp <- tempfile(fileext = ".gff3")
+  n   <- 6000L
+  lines <- vapply(seq_len(n), function(i) {
+    sprintf("chr1\t.\tgene\t%d\t%d\t.\t+\t.\tID=gene%05d;Name=G%05d",
+            i * 100L, i * 100L + 90L, i, i)
+  }, character(1L))
+  writeLines(c("##gff-version 3", lines), tmp)
+  on.exit(unlink(tmp))
+
+  gi <- inspect_gff_genes(tmp)
+  expect_false(is.null(gi))
+  expect_equal(nrow(gi), n,
+    info = "All genes must be indexed — no 5000 hard cap")
+})
+
+test_that("inspect_gff_genes extracts gene_id and gene_name from GTF", {
+  tmp <- tempfile(fileext = ".gtf")
+  writeLines(c(
+    "chr1\tsrc\tgene\t100\t900\t.\t+\t.\tgene_id \"GENE001\"; gene_name \"Alpha\";",
+    "chr1\tsrc\ttranscript\t100\t900\t.\t+\t.\tgene_id \"GENE001\"; transcript_id \"TX001\"; gene_name \"Alpha\";"
+  ), tmp)
+  on.exit(unlink(tmp))
+
+  gi <- inspect_gff_genes(tmp)
+  expect_false(is.null(gi))
+  expect_true("GENE001" %in% gi$gene_id)
+  expect_true("Alpha" %in% gi$name)
+})
+
+test_that("build_gene_selectize_choices returns one backend choice per indexed gene", {
+  gi <- data.frame(
+    gene_id = c("G1", "G2", "G3"),
+    name = c("A", "B", "C"),
+    locus_tag = c("", "", ""),
+    chrom = c("chr1", "chr1", "chr2"),
+    start = c(10L, 20L, 30L),
+    end = c(15L, 25L, 35L),
+    strand = c("+", "-", "+"),
+    searchable_label = c("G1 | A  [chr1:10-15 +]", "G2 | B  [chr1:20-25 -]", "G3 | C  [chr2:30-35 +]"),
+    source_file = "x.gff3",
+    stringsAsFactors = FALSE
+  )
+  choices <- build_gene_selectize_choices(gi)
+  expect_equal(length(choices), nrow(gi))
+  expect_true(all(unname(choices) == c("1", "2", "3")))
 })
 
 test_that("inspect_gff_genes gene region calculation with flanking", {
@@ -395,4 +469,77 @@ test_that("inspect_gff_genes gene region calculation with flanking", {
   e <- gi$end[1L] + flank
   expect_equal(s, 5000L)
   expect_equal(e, 25000L)
+})
+
+test_that("inspect_gff_genes clamps start to 1 when gene near chromosome start", {
+  flank     <- 5000L
+  gene_start <- 200L
+  s <- max(1L, gene_start - flank)
+  expect_equal(s, 1L)
+})
+
+# =============================================================================
+# Gene index cache
+# =============================================================================
+
+test_that("save/load/validate gene index cache works correctly", {
+  tmp_proj_dir <- withr::local_tempdir()
+  proj <- list(project_path = tmp_proj_dir)
+
+  # Create a minimal GFF file
+  gff_path <- file.path(tmp_proj_dir, "genes.gff3")
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t1000\t5000\t.\t+\t.\tID=gene1;Name=GeneA"
+  ), gff_path)
+
+  gene_df <- inspect_gff_genes(gff_path)
+  expect_false(is.null(gene_df))
+
+  # Save cache
+  cache_path <- save_gene_index_cache(gene_df, gff_path, "fGFF", proj)
+  expected_cache <- file.path(tmp_proj_dir, "metadata", "gene_index_fGFF.json")
+  expect_true(file.exists(expected_cache))
+
+  # Load cache
+  cache <- load_gene_index_cache("fGFF", proj)
+  expect_false(is.null(cache))
+  expect_equal(cache$n_genes, 1L)
+  expect_true(is.data.frame(cache$genes))
+  expect_equal(cache$source_file, gff_path)
+
+  # Validate: should be valid right after saving
+  expect_true(is_gene_index_cache_valid(cache, gff_path))
+})
+
+test_that("gene index cache is invalid after file modification", {
+  tmp_proj_dir <- withr::local_tempdir()
+  proj <- list(project_path = tmp_proj_dir)
+
+  gff_path <- file.path(tmp_proj_dir, "genes.gff3")
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t1000\t5000\t.\t+\t.\tID=gene1;Name=GeneA"
+  ), gff_path)
+
+  gene_df <- inspect_gff_genes(gff_path)
+  save_gene_index_cache(gene_df, gff_path, "fGFF2", proj)
+  cache <- load_gene_index_cache("fGFF2", proj)
+
+  # Simulate file update (mtime change)
+  Sys.sleep(1.1)
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t1000\t5000\t.\t+\t.\tID=gene1;Name=GeneA",
+    "chr1\t.\tgene\t6000\t9000\t.\t-\t.\tID=gene2;Name=GeneB"
+  ), gff_path)
+
+  expect_false(is_gene_index_cache_valid(cache, gff_path))
+})
+
+test_that("gene index cache returns NULL for missing cache file", {
+  tmp_proj_dir <- withr::local_tempdir()
+  proj <- list(project_path = tmp_proj_dir)
+  cache <- load_gene_index_cache("nonexistent_id", proj)
+  expect_null(cache)
 })
