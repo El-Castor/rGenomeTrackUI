@@ -81,7 +81,8 @@ app_config   <- tryCatch(read_yaml_safe("config/app_config.yaml"), error = funct
 track_schema <- tryCatch(load_track_schema("config/track_schema.yaml"),
                          error = function(e) { warning(e$message); list(tracks = list()) })
 
-APP_PORT     <- as.integer(app_config$app$port    %||% 3838L)
+APP_HOST     <- Sys.getenv("HOST", app_config$app$host %||% "127.0.0.1")
+APP_PORT     <- as.integer(Sys.getenv("PORT", app_config$app$port %||% 3838L))
 PROJECTS_ROOT <- app_config$app$projects_root %||% "projects"
 ensure_dir(PROJECTS_ROOT)
 ensure_dir("logs")
@@ -143,7 +144,6 @@ ui <- bslib::page_navbar(
       shiny::tags$script(src = "assets/app.js")
     )
   ),
-  bg = "#102a43",
 
   # ------ Dashboard ---------------------------------------------------------
   bslib::nav_panel(
@@ -304,13 +304,13 @@ server <- function(input, output, session) {
 # Launch
 # =============================================================================
 cat(sprintf("\n[rGenomeTrackUI] Starting on http://%s:%d\n",
-            app_config$app$host %||% "127.0.0.1", APP_PORT))
+            APP_HOST, APP_PORT))
 
 shiny::shinyApp(
   ui      = ui,
   server  = server,
   options = list(
-    host = app_config$app$host %||% "127.0.0.1",
+    host = APP_HOST,
     port = APP_PORT,
     launch.browser = FALSE
   )

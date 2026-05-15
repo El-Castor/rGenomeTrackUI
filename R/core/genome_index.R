@@ -582,23 +582,65 @@ validate_region_against_index <- function(region_str, chrom_index, active_only =
 # 8. inspect_gff_genes (gene picker support)
 # -----------------------------------------------------------------------------
 
-#' Build a complete gene/feature index from a GFF/GFF3/GTF file
+#' Build a complete biological gene index from a GFF/GFF3/GTF file
 #'
-#' Parses the entire file without any gene count limit. Extracts all features
-#' matching feature_types, with ID, Name, locus_tag (GFF3) or gene_id,
-#' gene_name (GTF). Returns a data.frame suitable for server-side selectize.
+#' Parses the entire file without any gene count limit. By default, only
+#' biological `gene` features are indexed; transcript, mRNA, exon, CDS and UTR
+#' rows are not counted as genes.
 #'
 #' @param file_path path to the GFF/GFF3/GTF file
 #' @param feature_types character vector of feature types to include
-#' @return data.frame(gene_id, name, locus_tag, chrom, start, end, strand,
-#'   searchable_label, source_file) sorted by chrom+start, or NULL on error
+#' @return data.frame with gene_id, gene_name, locus_tag, alias, chrom, start,
+#'   end, strand, feature_type, source_file, searchable_label and gene_key
 #' @export
 inspect_gff_genes <- function(file_path,
-                              feature_types = c("gene", "mRNA", "transcript", "pseudogene")) {
+                              feature_types = c("gene")) {
   tryCatch({
     con  <- file(file_path, "r")
     on.exit(close(con), add = TRUE)
     rows <- list()
+
+    clean_attr <- function(x) {
+      x <- trimws(as.character(x %||% ""))
+      if (is.na(x) || x == "") "" else x
+    }
+    clean_gene_identifier <- function(x) {
+      x <- clean_attr(x)
+      gsub("^(gene|transcript):", "", x, ignore.case = TRUE)
+    }
+    first_non_empty <- function(...) {
+      vals <- unlist(list(...), use.names = FALSE)
+      vals <- trimws(as.character(vals))
+      vals <- vals[!is.na(vals) & vals != ""]
+      if (length(vals) == 0L) "" else vals[1L]
+    }
+    parse_attrs <- function(attr_str) {
+      fields <- strsplit(attr_str, ";", fixed = TRUE)[[1]]
+      out <- list()
+      for (field in fields) {
+        field <- trimws(field)
+        if (field == "") next
+        if (grepl("=", field, fixed = TRUE)) {
+          kv <- strsplit(field, "=", fixed = TRUE)[[1]]
+          key <- trimws(kv[1L])
+          val <- trimws(paste(kv[-1L], collapse = "="))
+        } else {
+          kv <- strsplit(field, "\\s+", perl = TRUE)[[1]]
+          if (length(kv) < 2L) next
+          key <- trimws(kv[1L])
+          val <- trimws(paste(kv[-1L], collapse = " "))
+        }
+        val <- gsub('^"|"$', "", val)
+        if (key != "" && val != "") out[[key]] <- clean_attr(utils::URLdecode(val))
+      }
+      out
+    }
+    get_attr <- function(attrs, key) {
+      nms <- names(attrs)
+      if (is.null(nms)) return("")
+      hit <- which(tolower(nms) == tolower(key))
+      if (length(hit) == 0L) "" else clean_attr(attrs[[hit[1L]]])
+    }
 
     repeat {
       line <- readLines(con, n = 1L, warn = FALSE)
@@ -618,49 +660,46 @@ inspect_gff_genes <- function(file_path,
                     cols[7] %in% c("+", "-", ".")) cols[7] else "."
       if (is.na(s) || is.na(e)) next
 
-      attr_str <- cols[9]
+      raw_attributes <- clean_attr(cols[9])
+      attrs <- parse_attrs(raw_attributes)
+      id_attr <- get_attr(attrs, "ID")
+      name_attr <- get_attr(attrs, "Name")
+      gene_id_attr <- get_attr(attrs, "gene_id")
+      gene_name_attr <- get_attr(attrs, "gene_name")
+      locus_tag <- get_attr(attrs, "locus_tag")
+      alias <- get_attr(attrs, "Alias")
+      parent <- get_attr(attrs, "Parent")
 
-      # GFF3 attributes: ID=, Name=, locus_tag=
-      id_m  <- regmatches(attr_str, regexpr("(?i)\\bID=([^;]+)",        attr_str, perl = TRUE))
-      nm_m  <- regmatches(attr_str, regexpr("(?i)\\bName=([^;]+)",      attr_str, perl = TRUE))
-      lt_m  <- regmatches(attr_str, regexpr("(?i)\\blocus_tag=([^;]+)", attr_str, perl = TRUE))
-      # GTF attributes: gene_id "...", gene_name "..."
-      gid_m <- regmatches(attr_str, regexpr('gene_id "([^"]+)"',   attr_str, perl = TRUE))
-      gnm_m <- regmatches(attr_str, regexpr('gene_name "([^"]+)"', attr_str, perl = TRUE))
-
-      gene_id <- if (length(id_m) > 0L)
-                   sub("(?i)^ID=", "", id_m, perl = TRUE)
-                 else if (length(gid_m) > 0L)
-                   gsub('"', "", sub('^gene_id ', "", gid_m))
-                 else paste0(feat, "_", chrom, "_", s)
-
-      name    <- if (length(nm_m) > 0L)
-                   sub("(?i)^Name=", "", nm_m, perl = TRUE)
-                 else if (length(gnm_m) > 0L)
-                   gsub('"', "", sub('^gene_name ', "", gnm_m))
-                 else gene_id
-
-      locus_tag <- if (length(lt_m) > 0L)
-                     sub("(?i)^locus_tag=", "", lt_m, perl = TRUE)
-                   else NA_character_
+      fallback_id <- paste0(chrom, ":", s, "-", e)
+      gene_id_raw <- first_non_empty(id_attr, name_attr, gene_id_attr, locus_tag, alias, fallback_id)
+      gene_id <- first_non_empty(clean_gene_identifier(gene_id_raw), fallback_id)
+      gene_name <- first_non_empty(clean_gene_identifier(name_attr), gene_name_attr)
+      locus_tag <- clean_gene_identifier(locus_tag)
+      alias <- clean_gene_identifier(alias)
 
       # Searchable label: all identifiers + coordinates + strand
       parts <- unique(c(gene_id,
-                        if (!is.na(name) && name != gene_id) name else NULL,
-                        if (!is.na(locus_tag)) locus_tag else NULL))
+                        if (gene_name != "" && gene_name != gene_id) gene_name else NULL,
+                        if (locus_tag != "") locus_tag else NULL,
+                        if (alias != "") alias else NULL))
       searchable_label <- paste0(
         paste(parts, collapse = " | "),
-        "  [", chrom, ":", s, "-", e, " ", strand, "]"
+        " | ", chrom, ":", s, "-", e, " | ", strand
       )
 
       rows[[length(rows) + 1L]] <- list(
         gene_id          = gene_id,
-        name             = name,
-        locus_tag        = if (!is.na(locus_tag)) locus_tag else "",
+        gene_name        = gene_name,
+        name             = if (gene_name != "") gene_name else gene_id,
+        locus_tag        = locus_tag,
+        alias            = alias,
         chrom            = chrom,
         start            = s,
         end              = e,
         strand           = strand,
+        feature_type     = feat,
+        parent           = parent,
+        raw_attributes   = raw_attributes,
         searchable_label = searchable_label
       )
     }
@@ -668,22 +707,124 @@ inspect_gff_genes <- function(file_path,
     if (length(rows) == 0L) return(NULL)
     df <- data.frame(
       gene_id          = vapply(rows, `[[`, character(1L), "gene_id"),
+      gene_key         = make.unique(vapply(rows, `[[`, character(1L), "gene_id"), sep = "__"),
+      gene_name        = vapply(rows, `[[`, character(1L), "gene_name"),
       name             = vapply(rows, `[[`, character(1L), "name"),
       locus_tag        = vapply(rows, `[[`, character(1L), "locus_tag"),
+      alias            = vapply(rows, `[[`, character(1L), "alias"),
       chrom            = vapply(rows, `[[`, character(1L), "chrom"),
       start            = vapply(rows, `[[`, integer(1L),   "start"),
       end              = vapply(rows, `[[`, integer(1L),   "end"),
       strand           = vapply(rows, `[[`, character(1L), "strand"),
+      feature_type     = vapply(rows, `[[`, character(1L), "feature_type"),
+      parent           = vapply(rows, `[[`, character(1L), "parent"),
+      raw_attributes   = vapply(rows, `[[`, character(1L), "raw_attributes"),
       searchable_label = vapply(rows, `[[`, character(1L), "searchable_label"),
       source_file      = file_path,
       stringsAsFactors = FALSE
     )
-    df[order(df$chrom, df$start), ]
+    normalize_gene_index(df[order(df$chrom, df$start), ])
   }, error = function(e) {
     warning(sprintf("[genome_index] inspect_gff_genes(%s): %s",
                     basename(file_path), conditionMessage(e)))
     NULL
   })
+}
+
+#' Normalize gene index keys and labels
+#'
+#' @param gene_index data.frame from inspect_gff_genes() or cache
+#' @return normalized data.frame with non-empty unique gene_key and labels
+#' @export
+normalize_gene_index <- function(gene_index) {
+  if (is.null(gene_index) || !is.data.frame(gene_index) || nrow(gene_index) == 0L) {
+    return(gene_index)
+  }
+  required <- c("gene_id", "chrom", "start", "end", "strand")
+  missing <- setdiff(required, colnames(gene_index))
+  if (length(missing) > 0L) {
+    stop("Gene index missing required columns: ", paste(missing, collapse = ", "))
+  }
+  for (col in c("gene_name", "name", "locus_tag", "alias", "parent",
+                "raw_attributes", "searchable_label", "search_blob", "gene_key")) {
+    if (!col %in% colnames(gene_index)) gene_index[[col]] <- ""
+  }
+
+  clean <- function(x) {
+    x <- trimws(as.character(x))
+    x[is.na(x) | x == "NA"] <- ""
+    x
+  }
+  clean_identifier <- function(x) {
+    gsub("^(gene|transcript):", "", clean(x), ignore.case = TRUE)
+  }
+  for (col in c("gene_id", "gene_key", "gene_name", "name", "locus_tag", "alias",
+                "parent", "raw_attributes", "searchable_label", "search_blob",
+                "chrom", "strand")) {
+    gene_index[[col]] <- clean(gene_index[[col]])
+  }
+  gene_index$gene_id <- clean_identifier(gene_index$gene_id)
+  gene_index$gene_key <- clean_identifier(gene_index$gene_key)
+  gene_index$gene_name <- clean_identifier(gene_index$gene_name)
+  gene_index$locus_tag <- clean_identifier(gene_index$locus_tag)
+  gene_index$alias <- clean_identifier(gene_index$alias)
+  missing_gene_name <- gene_index$gene_name == "" & gene_index$name != "" &
+    gene_index$name != gene_index$gene_id
+  gene_index$gene_name[missing_gene_name] <- clean_identifier(gene_index$name[missing_gene_name])
+
+  coord <- paste0(gene_index$chrom, ":", gene_index$start, "-", gene_index$end)
+  gene_index$gene_key <- gene_index$gene_id
+  bad_key <- is.na(gene_index$gene_key) | gene_index$gene_key == ""
+  gene_index$gene_key[bad_key] <- coord[bad_key]
+  gene_index$gene_key <- make.unique(gene_index$gene_key, sep = "__")
+
+  label_parts <- Map(function(gene_id, gene_name, locus_tag, alias, coord, strand) {
+    vals <- c(gene_id, gene_name, locus_tag, alias, coord, strand)
+    vals <- vals[!is.na(vals) & vals != ""]
+    paste(unique(vals), collapse = " | ")
+  }, gene_index$gene_id, gene_index$gene_name, gene_index$locus_tag,
+     gene_index$alias, coord, gene_index$strand)
+  gene_index$searchable_label <- unlist(label_parts, use.names = FALSE)
+  bad_label <- is.na(gene_index$searchable_label) | gene_index$searchable_label == ""
+  gene_index$searchable_label[bad_label] <- gene_index$gene_key[bad_label]
+
+  blob_parts <- Map(function(gene_key, gene_id, gene_name, name, locus_tag,
+                             alias, parent, searchable_label, raw_attributes,
+                             chrom, start, end, strand) {
+    vals <- c(gene_key, gene_id, gene_name, name, locus_tag, alias, parent,
+              searchable_label, raw_attributes, paste0(chrom, ":", start, "-", end), strand)
+    vals <- vals[!is.na(vals) & vals != ""]
+    paste(unique(vals), collapse = " ")
+  }, gene_index$gene_key, gene_index$gene_id, gene_index$gene_name,
+     gene_index$name, gene_index$locus_tag, gene_index$alias, gene_index$parent,
+     gene_index$searchable_label, gene_index$raw_attributes, gene_index$chrom,
+     gene_index$start, gene_index$end, gene_index$strand)
+  gene_index$search_blob <- unlist(blob_parts, use.names = FALSE)
+
+  gene_index
+}
+
+log_gene_index_diagnostics <- function(gene_index, prefix = "[GeneIndex]") {
+  if (is.null(gene_index) || !is.data.frame(gene_index)) {
+    message(prefix, " rows: 0")
+    return(invisible(NULL))
+  }
+  message(prefix, " rows: ", nrow(gene_index))
+  message(prefix, " columns: ", paste(colnames(gene_index), collapse = ", "))
+  message(prefix, " first gene_id: ", paste(head(gene_index$gene_id %||% character(0), 20), collapse = " | "))
+  message(prefix, " first gene_name: ", paste(head(gene_index$gene_name %||% character(0), 20), collapse = " | "))
+  message(prefix, " first locus_tag: ", paste(head(gene_index$locus_tag %||% character(0), 20), collapse = " | "))
+  message(prefix, " first searchable_label: ", paste(head(gene_index$searchable_label %||% character(0), 20), collapse = " | "))
+  message(prefix, " first raw_attributes: ", paste(head(gene_index$raw_attributes %||% character(0), 20), collapse = " | "))
+  labels <- gene_index$searchable_label %||% character(0)
+  gene_ids <- gene_index$gene_id %||% character(0)
+  message(prefix, " contains Bdi searchable_label: ", sum(grepl("Bdi", labels, ignore.case = TRUE)))
+  message(prefix, " contains Bdi gene_id: ", sum(grepl("Bdi", gene_ids, ignore.case = TRUE)))
+  message(prefix, " contains Bradi searchable_label: ", sum(grepl("Bradi", labels, ignore.case = TRUE)))
+  message(prefix, " contains Bradi gene_id: ", sum(grepl("Bradi", gene_ids, ignore.case = TRUE)))
+  message(prefix, " contains Bd searchable_label: ", sum(grepl("Bd", labels, ignore.case = TRUE)))
+  message(prefix, " contains Bd gene_id: ", sum(grepl("Bd", gene_ids, ignore.case = TRUE)))
+  invisible(NULL)
 }
 
 # -----------------------------------------------------------------------------
@@ -706,7 +847,7 @@ save_gene_index_cache <- function(gene_df, gff_file_path, gff_file_id, project_c
     fi <- file.info(gff_file_path)
     cache_obj <- list(
       generated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-      version      = "2",
+      version      = "5",
       source_file  = gff_file_path,
       file_mtime   = as.numeric(fi$mtime),
       file_size    = as.numeric(fi$size),
@@ -750,6 +891,7 @@ load_gene_index_cache <- function(gff_file_id, project_config) {
 #' @export
 is_gene_index_cache_valid <- function(cache, gff_file_path) {
   if (is.null(cache)) return(FALSE)
+  if (!identical(as.character(cache$version %||% ""), "5")) return(FALSE)
   if (is.null(cache$source_file) || !identical(cache$source_file, gff_file_path)) return(FALSE)
   if (!file.exists(gff_file_path)) return(FALSE)
   cached_mtime  <- suppressWarnings(as.numeric(cache$file_mtime))
@@ -765,16 +907,144 @@ is_gene_index_cache_valid <- function(cache, gff_file_path) {
 #' Build named choices for server-side gene selectize
 #'
 #' @param gene_df data.frame from inspect_gff_genes()
-#' @return named character vector(label -> row_index)
+#' @return named character vector(label -> stable gene_key)
 #' @export
+make_gene_selectize_choices <- function(gene_index) {
+  stopifnot(is.data.frame(gene_index))
+  gene_index <- normalize_gene_index(gene_index)
+  required <- c("gene_key", "searchable_label")
+  missing <- setdiff(required, colnames(gene_index))
+  if (length(missing) > 0L) {
+    stop("Missing columns in gene_index: ", paste(missing, collapse = ", "))
+  }
+
+  values <- as.character(gene_index$gene_key)
+  labels <- as.character(gene_index$searchable_label)
+  ok <- !is.na(values) & values != "" & !is.na(labels) & labels != ""
+  values <- values[ok]
+  labels <- labels[ok]
+  values <- make.unique(values, sep = "__")
+
+  choices <- stats::setNames(values, labels)
+  if (length(choices) == 0L) {
+    stop("No valid gene selectize choices generated.")
+  }
+  message("[GeneSelect] choices: ", length(choices))
+  message("[GeneSelect] first labels: ", paste(head(names(choices), 20), collapse = " | "))
+  message("[GeneSelect] first values: ", paste(head(unname(choices), 20), collapse = " | "))
+  choices
+}
+
+#' Build data.frame choices for Shiny server-side selectize
+#'
+#' The extra search_blob column lets selectize search raw GFF/GTF attributes
+#' without changing the stable selected value.
+#'
+#' @param gene_index normalized gene index
+#' @return data.frame with label, value and search_blob
+#' @export
+make_gene_selectize_data <- function(gene_index) {
+  stopifnot(is.data.frame(gene_index))
+  gene_index <- normalize_gene_index(gene_index)
+  choices <- make_gene_selectize_choices(gene_index)
+  ok <- gene_index$gene_key %in% unname(choices)
+  data.frame(
+    label = as.character(gene_index$searchable_label[ok]),
+    value = as.character(gene_index$gene_key[ok]),
+    search_blob = as.character(gene_index$search_blob[ok]),
+    stringsAsFactors = FALSE
+  )
+}
+
 build_gene_selectize_choices <- function(gene_df) {
   if (is.null(gene_df) || !is.data.frame(gene_df) || nrow(gene_df) == 0L) {
     return(setNames(character(0), character(0)))
   }
-  labels <- if ("searchable_label" %in% names(gene_df)) {
-    gene_df$searchable_label
-  } else {
-    paste0(gene_df$name, "  [", gene_df$chrom, ":", gene_df$start, "-", gene_df$end, "]")
+  make_gene_selectize_choices(gene_df)
+}
+
+#' Search the gene index independently of selectize
+#'
+#' @param gene_index normalized gene index
+#' @param query search string
+#' @param max_results maximum rows returned
+#' @return data.frame subset
+#' @export
+search_gene_index <- function(gene_index, query, max_results = 50) {
+  if (is.null(gene_index) || !is.data.frame(gene_index) || nrow(gene_index) == 0L) {
+    return(as.data.frame(gene_index)[0, , drop = FALSE])
   }
-  stats::setNames(as.character(seq_len(nrow(gene_df))), labels)
+  query <- trimws(as.character(query %||% ""))
+  if (length(query) == 0L || is.na(query[1L]) || query[1L] == "") {
+    return(gene_index[0, , drop = FALSE])
+  }
+  query <- query[1L]
+  gene_index <- normalize_gene_index(gene_index)
+  if (!"search_blob" %in% colnames(gene_index)) {
+    fields <- intersect(
+      c("gene_key", "gene_id", "gene_name", "locus_tag", "alias", "searchable_label", "raw_attributes"),
+      colnames(gene_index)
+    )
+    gene_index$search_blob <- apply(gene_index[, fields, drop = FALSE], 1L, function(x) {
+      paste(stats::na.omit(as.character(x)), collapse = " ")
+    })
+  }
+  hit <- tryCatch(
+    grepl(query, gene_index$search_blob, ignore.case = TRUE, fixed = FALSE),
+    warning = function(w) grepl(query, gene_index$search_blob, ignore.case = TRUE, fixed = TRUE),
+    error = function(e) grepl(query, gene_index$search_blob, ignore.case = TRUE, fixed = TRUE)
+  )
+  utils::head(gene_index[hit, , drop = FALSE], max_results)
+}
+
+#' Resolve a selectize gene value to a row in a gene index
+#'
+#' @param gene_df data.frame from inspect_gff_genes()
+#' @param selection selected gene_key, gene_id, gene_name, locus_tag, alias, or label text
+#' @return one-row data.frame, or NULL if none/multiple match
+#' @export
+resolve_gene_selection <- function(gene_df, selection) {
+  if (is.null(gene_df) || !is.data.frame(gene_df) || nrow(gene_df) == 0L) return(NULL)
+  selection <- trimws(as.character(selection %||% ""))
+  if (length(selection) == 0L || is.na(selection[1L]) || selection[1L] == "") return(NULL)
+  selection <- selection[1L]
+
+  cols_exact <- intersect(c("gene_key", "gene_id", "gene_name", "name", "locus_tag", "alias"),
+                          names(gene_df))
+  for (col in cols_exact) {
+    vals <- trimws(as.character(gene_df[[col]]))
+    hits <- which(!is.na(vals) & vals != "" & vals == selection)
+    if (length(hits) == 1L) return(gene_df[hits, , drop = FALSE])
+  }
+
+  if ("searchable_label" %in% names(gene_df)) {
+    labels <- trimws(as.character(gene_df$searchable_label))
+    hits <- which(!is.na(labels) & labels != "" & labels == selection)
+    if (length(hits) == 1L) return(gene_df[hits, , drop = FALSE])
+  }
+
+  NULL
+}
+
+#' Compute a flanked genomic region around one indexed gene
+#'
+#' @param gene_row one-row data.frame from inspect_gff_genes()
+#' @param flank integer flank in bp
+#' @param chrom_index optional chromosome index data.frame with chrom and length
+#' @return character region string chrom:start-end
+#' @export
+gene_region_string <- function(gene_row, flank = 5000L, chrom_index = NULL) {
+  stopifnot(is.data.frame(gene_row), nrow(gene_row) >= 1L)
+  flank <- max(0L, as.integer(flank %||% 0L))
+  ch <- as.character(gene_row$chrom[1L])
+  s <- max(1L, as.integer(gene_row$start[1L]) - flank)
+  e <- as.integer(gene_row$end[1L]) + flank
+  if (!is.null(chrom_index) && is.data.frame(chrom_index) && nrow(chrom_index) > 0L) {
+    row_ch <- chrom_index[chrom_index$chrom == ch, , drop = FALSE]
+    if (nrow(row_ch) > 0L) {
+      chrom_len <- suppressWarnings(as.integer(row_ch$length[1L]))
+      if (!is.na(chrom_len) && chrom_len > 0L) e <- min(e, chrom_len)
+    }
+  }
+  sprintf("%s:%d-%d", ch, s, e)
 }

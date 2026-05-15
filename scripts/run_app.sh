@@ -2,8 +2,8 @@
 set -eo pipefail
 
 ENV_NAME="${RGENOMETRACKUI_CONDA_ENV:-rgenometrackui}"
-PORT="${PORT:-3838}"
-HOST="${HOST:-127.0.0.1}"
+APP_PORT="${PORT:-3838}"
+APP_HOST="${RGENOMETRACKUI_HOST:-127.0.0.1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -29,8 +29,8 @@ export PATH="${CONDA_PREFIX}/bin:${PATH}"
 export CONDA_DEFAULT_ENV="$ENV_NAME"
 export RGENOMETRACKUI_ROOT="$APP_DIR"
 export MPLBACKEND=Agg
-export PORT="$PORT"
-export HOST="$HOST"
+export PORT="$APP_PORT"
+export HOST="$APP_HOST"
 
 # macOS dynamic libraries
 export DYLD_LIBRARY_PATH="${CONDA_PREFIX}/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
@@ -44,7 +44,7 @@ echo "  R                 : $(which R || true)"
 echo "  python            : $(which python || true)"
 echo "  pyGenomeTracks    : $(which pyGenomeTracks || true)"
 echo "  bedtools          : $(which bedtools || true)"
-echo "  URL               : http://${HOST}:${PORT}"
+echo "  URL               : http://${APP_HOST}:${APP_PORT}"
 echo ""
 
 exec Rscript app.R

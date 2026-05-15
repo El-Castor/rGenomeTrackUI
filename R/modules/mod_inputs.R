@@ -261,7 +261,8 @@ mod_inputs_server <- function(id, app_state, schema) {
         # Auto-detect track type from extension
         detected <- detect_file_type(selected_path)
         if (!is.null(detected) && detected != "unknown") {
-          shiny::updateSelectInput(session, "local_track_type", selected = detected)
+          shiny::updateSelectInput(session, "local_track_type",
+                                   selected = file_type_to_track_type(detected))
         }
 
         # Notification avec taille du fichier

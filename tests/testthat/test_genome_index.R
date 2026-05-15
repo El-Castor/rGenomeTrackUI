@@ -380,13 +380,20 @@ test_that("inspect_gff_genes extracts gene features with GFF3 attributes", {
 
   gi <- inspect_gff_genes(tmp)
   expect_is(gi, "data.frame")
-  expect_true(nrow(gi) >= 2L)
+  expect_equal(nrow(gi), 2L)
   expect_true("gene_id" %in% names(gi))
   expect_true("Bradi1g00010" %in% gi$gene_id || "gene1" %in% gi$name)
+  expect_true(all(gi$feature_type == "gene"))
+  expect_false(any(grepl("exon", gi$feature_type)))
   # New columns present
   expect_true("strand"           %in% names(gi))
   expect_true("locus_tag"        %in% names(gi))
+  expect_true("alias"            %in% names(gi))
+  expect_true("gene_name"        %in% names(gi))
+  expect_true("gene_key"         %in% names(gi))
   expect_true("searchable_label" %in% names(gi))
+  expect_true("raw_attributes"   %in% names(gi))
+  expect_true("search_blob"      %in% names(gi))
   expect_true("source_file"      %in% names(gi))
   # strand values correct
   bd1_gene <- gi[gi$gene_id == "Bradi1g00010", ]
@@ -395,6 +402,27 @@ test_that("inspect_gff_genes extracts gene features with GFF3 attributes", {
   expect_equal(bd2_gene$strand, "-")
   # searchable_label contains gene_id
   expect_true(any(grepl("Bradi1g00010", gi$searchable_label)))
+  expect_true(any(grepl("ID=Bradi1g00010", gi$raw_attributes, fixed = TRUE)))
+  expect_true(any(grepl("ID=Bradi1g00010", gi$search_blob, fixed = TRUE)))
+})
+
+test_that("inspect_gff_genes excludes mRNA exon CDS and UTR by default", {
+  tmp <- tempfile(fileext = ".gff3")
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t100\t900\t.\t+\t.\tID=gene1;Name=GeneA",
+    "chr1\t.\tmRNA\t100\t900\t.\t+\t.\tID=tx1;Parent=gene1",
+    "chr1\t.\texon\t100\t250\t.\t+\t.\tParent=tx1",
+    "chr1\t.\tCDS\t300\t500\t.\t+\t0\tParent=tx1",
+    "chr1\t.\tfive_prime_UTR\t100\t150\t.\t+\t.\tParent=tx1",
+    "chr1\t.\tgene\t1200\t1800\t.\t-\t.\tID=gene2;Name=GeneB"
+  ), tmp)
+  on.exit(unlink(tmp))
+
+  gi <- inspect_gff_genes(tmp)
+  expect_equal(nrow(gi), 2L)
+  expect_equal(unique(gi$feature_type), "gene")
+  expect_equal(gi$gene_id, c("gene1", "gene2"))
 })
 
 test_that("inspect_gff_genes extracts locus_tag from GFF3", {
@@ -409,6 +437,40 @@ test_that("inspect_gff_genes extracts locus_tag from GFF3", {
   expect_false(is.null(gi))
   expect_equal(gi$locus_tag[1L], "LT001")
   expect_true(grepl("LT001", gi$searchable_label[1L]))
+  expect_true(grepl("locus_tag=LT001", gi$raw_attributes[1L], fixed = TRUE))
+  expect_true(grepl("locus_tag=LT001", gi$search_blob[1L], fixed = TRUE))
+})
+
+test_that("inspect_gff_genes strips gene prefixes but keeps raw attributes searchable", {
+  tmp <- tempfile(fileext = ".gff3")
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t100\t500\t.\t+\t.\tID=gene:BdiBd21-3.1G000100;Name=transcript:BdiBd21-3.1G000100;locus_tag=LT001"
+  ), tmp)
+  on.exit(unlink(tmp))
+
+  gi <- inspect_gff_genes(tmp)
+  expect_equal(gi$gene_id[1L], "BdiBd21-3.1G000100")
+  expect_true(grepl("ID=gene:BdiBd21-3.1G000100", gi$raw_attributes[1L], fixed = TRUE))
+  expect_equal(nrow(search_gene_index(gi, "gene:BdiBd21-3.1G000100")), 1L)
+})
+
+test_that("inspect_gff_genes extracts Alias and fallback identifiers", {
+  tmp <- tempfile(fileext = ".gff3")
+  writeLines(c(
+    "##gff-version 3",
+    "chr1\t.\tgene\t100\t500\t.\t+\t.\tID=gene001;Name=GeneA;locus_tag=LT001;Alias=A1,A2",
+    "chr1\t.\tgene\t700\t900\t.\t+\t.\tName=OnlyName",
+    "chr2\t.\tgene\t1000\t1500\t.\t-\t.\t."
+  ), tmp)
+  on.exit(unlink(tmp))
+
+  gi <- inspect_gff_genes(tmp)
+  expect_equal(gi$alias[gi$gene_id == "gene001"], "A1,A2")
+  expect_equal(gi$locus_tag[gi$gene_id == "gene001"], "LT001")
+  expect_true("OnlyName" %in% gi$gene_id)
+  expect_true("chr2:1000-1500" %in% gi$gene_id)
+  expect_false(any(is.na(gi$gene_id) | gi$gene_id == ""))
 })
 
 test_that("inspect_gff_genes indexes ALL genes — no 5000 cap", {
@@ -456,7 +518,111 @@ test_that("build_gene_selectize_choices returns one backend choice per indexed g
   )
   choices <- build_gene_selectize_choices(gi)
   expect_equal(length(choices), nrow(gi))
-  expect_true(all(unname(choices) == c("1", "2", "3")))
+  expect_true(all(unname(choices) == c("G1", "G2", "G3")))
+  expect_true(any(grepl("A", names(choices))))
+  expect_true(any(grepl("G1", names(choices))))
+  expect_false(any(is.na(names(choices)) | names(choices) == ""))
+  expect_false(any(is.na(unname(choices)) | unname(choices) == ""))
+  expect_equal(length(unique(unname(choices))), length(choices))
+})
+
+test_that("make_gene_selectize_choices normalizes duplicate and missing keys", {
+  gi <- data.frame(
+    gene_id = c("G1", "G1", ""),
+    gene_name = c("Alpha", "Alpha iso", ""),
+    locus_tag = c("", "", ""),
+    alias = c("", "", ""),
+    chrom = c("chr1", "chr1", "chr2"),
+    start = c(10L, 20L, 30L),
+    end = c(15L, 25L, 35L),
+    strand = c("+", "-", "+"),
+    feature_type = c("gene", "gene", "gene"),
+    source_file = "x.gff3",
+    stringsAsFactors = FALSE
+  )
+  choices <- make_gene_selectize_choices(gi)
+  expect_equal(length(choices), nrow(gi))
+  expect_false(any(is.na(names(choices)) | names(choices) == ""))
+  expect_false(any(is.na(unname(choices)) | unname(choices) == ""))
+  expect_equal(length(unique(unname(choices))), length(choices))
+  expect_true("chr2:30-35" %in% unname(choices))
+})
+
+test_that("make_gene_selectize_data includes search_blob for server-side selectize", {
+  gi <- data.frame(
+    gene_id = c("G1", "G2"),
+    gene_name = c("Alpha", "Beta"),
+    locus_tag = c("LT1", ""),
+    alias = c("", "AliasB"),
+    chrom = c("chr1", "chr2"),
+    start = c(10L, 20L),
+    end = c(15L, 25L),
+    strand = c("+", "-"),
+    feature_type = c("gene", "gene"),
+    raw_attributes = c("ID=G1;Name=Alpha;locus_tag=LT1", "ID=G2;Alias=AliasB"),
+    source_file = "x.gff3",
+    stringsAsFactors = FALSE
+  )
+  dat <- make_gene_selectize_data(gi)
+  expect_equal(nrow(dat), nrow(gi))
+  expect_true(all(c("label", "value", "search_blob") %in% names(dat)))
+  expect_false(any(is.na(dat$label) | dat$label == ""))
+  expect_false(any(is.na(dat$value) | dat$value == ""))
+  expect_true(any(grepl("locus_tag=LT1", dat$search_blob, fixed = TRUE)))
+})
+
+test_that("search_gene_index finds exact ids prefixes and names", {
+  gi <- data.frame(
+    gene_id = c("BdiBd21-3.1G0000100.v1.2", "BdiBd21-3.1G0000200.v1.2", "Other001"),
+    gene_name = c("BdiBd21-3.1G0000100", "KinaseBeta", "Gamma"),
+    locus_tag = c("LT001", "", ""),
+    alias = c("AliasA", "", ""),
+    raw_attributes = c(
+      "ID=BdiBd21-3.1G0000100.v1.2;Name=BdiBd21-3.1G0000100;Note=raw_hit",
+      "ID=BdiBd21-3.1G0000200.v1.2;Name=KinaseBeta",
+      "ID=Other001;Name=Gamma"
+    ),
+    chrom = c("Bd1", "Bd1", "Bd2"),
+    start = c(10L, 200L, 500L),
+    end = c(100L, 300L, 900L),
+    strand = c("+", "-", "+"),
+    feature_type = c("gene", "gene", "gene"),
+    source_file = "x.gff3",
+    stringsAsFactors = FALSE
+  )
+  gi <- normalize_gene_index(gi)
+  expect_equal(nrow(search_gene_index(gi, "BdiBd21-3.1G0000100.v1.2")), 1L)
+  expect_equal(nrow(search_gene_index(gi, "BdiBd21")), 2L)
+  expect_equal(search_gene_index(gi, "Kinase")$gene_id, "BdiBd21-3.1G0000200.v1.2")
+  expect_equal(search_gene_index(gi, "LT001")$gene_id, "BdiBd21-3.1G0000100.v1.2")
+  expect_equal(search_gene_index(gi, "raw_hit")$gene_id, "BdiBd21-3.1G0000100.v1.2")
+  expect_equal(nrow(search_gene_index(gi, "absent_query")), 0L)
+})
+
+test_that("resolve_gene_selection and gene_region_string handle stable gene keys", {
+  gi <- data.frame(
+    gene_id = c("G1", "G2"),
+    gene_key = c("G1", "G2"),
+    gene_name = c("Alpha", "Beta"),
+    name = c("Alpha", "Beta"),
+    locus_tag = c("LT1", ""),
+    alias = c("A1", ""),
+    chrom = c("chr1", "chr1"),
+    start = c(200L, 10000L),
+    end = c(500L, 12000L),
+    strand = c("+", "-"),
+    feature_type = c("gene", "gene"),
+    searchable_label = c("G1 | Alpha | LT1 | A1 | chr1:200-500 | +", "G2 | Beta | chr1:10000-12000 | -"),
+    source_file = "x.gff3",
+    stringsAsFactors = FALSE
+  )
+  chrom_index <- data.frame(chrom = "chr1", length = 11000L, stringsAsFactors = FALSE)
+
+  expect_equal(resolve_gene_selection(gi, "G1")$gene_id, "G1")
+  expect_equal(resolve_gene_selection(gi, "Alpha")$gene_id, "G1")
+  expect_equal(resolve_gene_selection(gi, "LT1")$gene_id, "G1")
+  expect_equal(gene_region_string(resolve_gene_selection(gi, "G1"), 5000L, chrom_index), "chr1:1-5500")
+  expect_equal(gene_region_string(resolve_gene_selection(gi, "G2"), 5000L, chrom_index), "chr1:5000-11000")
 })
 
 test_that("inspect_gff_genes gene region calculation with flanking", {

@@ -14,9 +14,9 @@
   ".bg"          = "bedgraph",
   ".gtf"         = "gtf",
   ".gtf.gz"      = "gtf",
-  ".gff"         = "gtf",
-  ".gff3"        = "gtf",
-  ".gff.gz"      = "gtf",
+  ".gff"         = "gff",
+  ".gff3"        = "gff3",
+  ".gff.gz"      = "gff",
   ".narrowPeak"  = "narrowPeak",
   ".narrowpeak"  = "narrowPeak",
   ".bedpe"       = "links",
@@ -41,6 +41,12 @@ detect_file_type <- function(path) {
   "unknown"
 }
 
+file_type_to_track_type <- function(file_type) {
+  ft <- tolower(as.character(file_type %||% ""))
+  if (ft %in% c("gff", "gff3")) return("gtf")
+  file_type
+}
+
 #' Add a file to the project's input registry
 #'
 #' @param project_config project config list
@@ -63,7 +69,11 @@ add_file_to_registry <- function(project_config, source_path, mode = "copy", tra
     basename(source_path)
   }
   detected_type <- detect_file_type(original_name)  # utilise le vrai nom, pas le chemin temp
-  track_type_final <- if (!is.null(track_type) && nchar(trimws(track_type)) > 0) track_type else detected_type
+  track_type_final <- if (!is.null(track_type) && nchar(trimws(track_type)) > 0) {
+    track_type
+  } else {
+    file_type_to_track_type(detected_type)
+  }
 
   message(sprintf("[file_registry] file_id=%s  original_name=%s  detected_type=%s  track_type=%s  mode=%s",
                   file_id, original_name, detected_type, track_type_final, mode))

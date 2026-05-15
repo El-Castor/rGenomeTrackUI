@@ -475,6 +475,7 @@ mod_region_settings_server <- function(id, app_state) {
     gene_index_rv       <- shiny::reactiveVal(NULL)
     selected_gff_rv     <- shiny::reactiveVal(NULL)
     gene_cache_status_rv <- shiny::reactiveVal("non indexé")
+    gene_feature_types <- c("gene")
 
     # Reactive: GFF/GTF rows available in registry
     gff_rows_rv <- shiny::reactive({
@@ -484,6 +485,15 @@ mod_region_settings_server <- function(id, app_state) {
                     c("gtf", "gff", "gff3"), , drop = FALSE]
       if (nrow(rows) == 0L) NULL else rows
     })
+
+    .annotation_format_label <- function(row) {
+      path <- row$stored_path %||% row$original_name %||% ""
+      ext <- tolower(tools::file_ext(path))
+      if (identical(ext, "gff3")) return("GFF3")
+      if (identical(ext, "gff")) return("GFF")
+      if (identical(ext, "gtf")) return("GTF")
+      toupper(row$file_type_detected %||% "annotation")
+    }
 
     # Auto-select first GFF when registry changes
     shiny::observe({
@@ -527,6 +537,8 @@ mod_region_settings_server <- function(id, app_state) {
           gene_df <- tryCatch(as.data.frame(cache$genes, stringsAsFactors = FALSE),
                               error = function(e) NULL)
           if (!is.null(gene_df) && nrow(gene_df) > 0L) {
+            gene_df <- normalize_gene_index(gene_df)
+            log_gene_index_diagnostics(gene_df)
             message(sprintf("[genome_index] Gene index cache hit: %d genes from %s",
                             nrow(gene_df), basename(fpath)))
             gene_index_rv(gene_df)
@@ -542,6 +554,10 @@ mod_region_settings_server <- function(id, app_state) {
         id = "gene_notif", duration = NULL, type = "message")
       tryCatch({
         gene_df <- inspect_gff_genes(fpath)
+        if (!is.null(gene_df) && nrow(gene_df) > 0L) {
+          gene_df <- normalize_gene_index(gene_df)
+          log_gene_index_diagnostics(gene_df)
+        }
         if (!is.null(gene_df) && nrow(gene_df) > 0L && !is.null(proj)) {
           save_gene_index_cache(gene_df, fpath, fid, proj)
         }
@@ -582,18 +598,37 @@ mod_region_settings_server <- function(id, app_state) {
       selected_gff_rv(new_fid)
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
-    # Populate gene selectize server-side to avoid sending huge lists to client
-    shiny::observe({
-      gi <- gene_index_rv()
+    .update_gene_selectize <- function(gi) {
       if (is.null(gi) || nrow(gi) == 0L) {
         shiny::updateSelectizeInput(session, "gene_picker_sel",
-          choices = c("" = ""), selected = "", server = TRUE)
-        return()
+          choices = stats::setNames(character(0), character(0)),
+          selected = character(0), server = TRUE)
+        return(invisible(NULL))
       }
-      choices_vec <- build_gene_selectize_choices(gi)
+      choices_vec <- make_gene_selectize_choices(gi)
+      choices_data <- make_gene_selectize_data(gi)
+      message("[GeneSelect] update selectize with ", length(choices_vec), " choices")
+      message("[GeneSelect] first labels: ", paste(head(names(choices_vec), 10), collapse = " | "))
+      message("[GeneSelect] first values: ", paste(head(unname(choices_vec), 10), collapse = " | "))
       shiny::updateSelectizeInput(session, "gene_picker_sel",
-        choices = choices_vec, selected = "", server = TRUE)
-    })
+        choices = choices_data, selected = character(0), server = TRUE,
+        options = list(
+          placeholder = "Tapez un ID ou nom de gène...",
+          maxOptions = 100L,
+          create = FALSE,
+          valueField = "value",
+          labelField = "label",
+          searchField = c("label", "value", "search_blob")
+        ))
+      message("[GeneSelect] updateSelectizeInput done with ", length(choices_vec), " choices.")
+      invisible(NULL)
+    }
+
+    # Populate gene selectize server-side to avoid sending huge lists to client
+    shiny::observeEvent(gene_index_rv(), {
+      gi <- gene_index_rv()
+      session$onFlushed(function() .update_gene_selectize(gi), once = TRUE)
+    }, ignoreNULL = FALSE)
 
     # Render gene picker UI block
     output$gene_picker_block <- shiny::renderUI({
@@ -606,8 +641,10 @@ mod_region_settings_server <- function(id, app_state) {
       # Annotation file selector
       gff_choices <- stats::setNames(
         gff_rows$file_id,
-        paste0(basename(gff_rows$stored_path), " (",
-               toupper(gff_rows$file_type_detected), ")")
+        vapply(seq_len(nrow(gff_rows)), function(i) {
+          paste0(basename(gff_rows$stored_path[i]), " (",
+                 .annotation_format_label(gff_rows[i, , drop = FALSE]), ")")
+        }, character(1L))
       )
       gff_selector <- shiny::selectInput(
         ns("gff_src_file"),
@@ -628,32 +665,9 @@ mod_region_settings_server <- function(id, app_state) {
           if (nchar(src_file) > 0L)
             shiny::tags$small(class = "text-muted d-block mt-1",
               shiny::icon("database"), " ", src_file,
-              " — ", cache_status)
+              " — ", cache_status,
+              " — feature utilisée : ", paste(gene_feature_types, collapse = ", "))
           else NULL
-        )
-        gene_picker_body <- shiny::tagList(
-          shiny::selectizeInput(
-            ns("gene_picker_sel"),
-            "Choisir un g\u00e8ne",
-            choices  = NULL,
-            selected = "",
-            options  = list(
-              maxOptions  = 100L,
-              placeholder = "ID, nom, locus_tag\u2026"
-            )
-          ),
-          shiny::selectInput(ns("gene_flank"), "Flanquement",
-            choices  = c("1 kb" = 1000, "5 kb" = 5000, "10 kb" = 10000,
-                         "50 kb" = 50000, "100 kb" = 100000,
-                         "Personnalisé" = "custom"),
-            selected = 5000
-          ),
-          shiny::numericInput(ns("gene_flank_custom"),
-            "Flanquement personnalisé (bp)",
-            value = 5000L, min = 1L, max = 50000000L, step = 100L),
-          shiny::actionButton(ns("btn_add_gene_region"),
-            shiny::tagList(shiny::icon("plus"), " Ajouter r\u00e9gion autour du g\u00e8ne"),
-            class = "btn btn-outline-primary btn-sm w-100 mt-1")
         )
       } else {
         header_content <- shiny::tags$small(
@@ -663,8 +677,41 @@ mod_region_settings_server <- function(id, app_state) {
           else
             "Aucun g\u00e8ne trouv\u00e9 dans ce fichier."
         )
-        gene_picker_body <- NULL
       }
+
+      gene_picker_body <- shiny::tagList(
+        shiny::selectizeInput(
+          ns("gene_picker_sel"),
+          "Choisir un g\u00e8ne",
+          choices  = NULL,
+          selected = NULL,
+          options  = list(
+            maxOptions  = 100L,
+            create      = FALSE,
+            valueField  = "value",
+            labelField  = "label",
+            searchField = c("label", "value", "search_blob"),
+            placeholder = "Tapez un ID ou nom de g\u00e8ne..."
+          )
+        ),
+        shiny::selectInput(ns("gene_flank"), "Flanquement",
+          choices  = c("1 kb" = 1000, "5 kb" = 5000, "10 kb" = 10000,
+                       "50 kb" = 50000, "100 kb" = 100000,
+                       "Personnalisé" = "custom"),
+          selected = 5000
+        ),
+        shiny::numericInput(ns("gene_flank_custom"),
+          "Flanquement personnalisé (bp)",
+          value = 5000L, min = 1L, max = 50000000L, step = 100L),
+        shiny::actionButton(ns("btn_add_gene_region"),
+          shiny::tagList(shiny::icon("plus"), " Ajouter r\u00e9gion autour du g\u00e8ne"),
+          class = "btn btn-outline-primary btn-sm w-100 mt-1")
+      )
+
+      shiny::isolate({
+        gi_now <- gene_index_rv()
+        session$onFlushed(function() .update_gene_selectize(gi_now), once = TRUE)
+      })
 
       shiny::div(class = "gene-picker-card mt-3",
         shiny::div(class = "gene-picker-header mb-2",
@@ -682,49 +729,48 @@ mod_region_settings_server <- function(id, app_state) {
       )
     })
 
+    shiny::observeEvent(input$gene_picker_sel, {
+      message("[GeneSelect] selected value: ", paste(input$gene_picker_sel, collapse = ", "))
+    }, ignoreInit = TRUE)
+
     shiny::observeEvent(input$btn_add_gene_region, {
       gi  <- gene_index_rv()
-      sel <- as.integer(input$gene_picker_sel %||% "")
-      if (is.null(gi) || is.null(sel) || is.na(sel) || sel < 1L || sel > nrow(gi)) {
-        shiny::showNotification("S\u00e9lectionnez un g\u00e8ne.", type = "warning"); return()
+      sel <- input$gene_picker_sel %||% ""
+      if (is.null(gi) || nrow(gi) == 0L || is.null(sel) || length(sel) == 0L || identical(sel, "")) {
+        shiny::showNotification(
+          "Veuillez sélectionner un gène dans la liste avant d’ajouter une région.",
+          type = "error", duration = 7)
+        return()
+      }
+      row <- gi[gi$gene_key == sel, , drop = FALSE]
+      if (nrow(row) != 1L) {
+        shiny::showNotification(
+          sprintf("Gène introuvable dans l’index : %s", paste(sel, collapse = ", ")),
+          type = "error", duration = 8)
+        message("[GeneSelect] selected key not found: ", paste(sel, collapse = ", "))
+        return()
       }
       flank <- if (identical(input$gene_flank, "custom")) {
         max(1L, as.integer(input$gene_flank_custom %||% 5000L))
       } else {
         as.integer(input$gene_flank %||% 5000L)
       }
-      gene_row <- gi[sel, ]
-      ch   <- gene_row$chrom
-      s    <- max(1L, gene_row$start - flank)
-      e_raw <- gene_row$end + flank
-      chrom_len_known <- FALSE
-
-      # Clamp to chromosome length if known
       ci  <- chrom_index_rv()
-      if (!is.null(ci) && !is.null(ci$index)) {
-        row_ch <- ci$index[ci$index$chrom == ch, , drop = FALSE]
-        if (nrow(row_ch) > 0L) {
-          chrom_len <- as.integer(row_ch$length[1L])
-          if (!is.na(chrom_len) && chrom_len > 0L) {
-            e_raw <- min(e_raw, chrom_len)
-            chrom_len_known <- TRUE
-          }
-        }
-      }
-      if (!chrom_len_known) {
+      chrom_index <- if (!is.null(ci)) ci$index else NULL
+      if (is.null(chrom_index) || !row$chrom[1L] %in% chrom_index$chrom) {
         shiny::showNotification(
           "Longueur du chromosome inconnue, fin non bornée par une taille officielle.",
           type = "warning", duration = 5)
       }
-      region_str <- sprintf("%s:%d-%d", ch, s, e_raw)
+      region_str <- gene_region_string(row, flank = flank, chrom_index = chrom_index)
       existing   <- app_state$regions %||% character(0)
       if (region_str %in% existing) {
         shiny::showNotification("D\u00e9j\u00e0 dans la liste.", type = "warning"); return()
       }
       app_state$regions <- c(existing, region_str)
+      gene_label <- row$gene_id %||% row$name %||% sel
       shiny::showNotification(
-        sprintf("R\u00e9gion ajout\u00e9e : %s (\u00b1%s autour de %s)",
-                region_str, format(flank, big.mark = " "), gene_row$name),
+        sprintf("R\u00e9gion ajout\u00e9e autour du g\u00e8ne %s : %s.", gene_label, region_str),
         type = "message", duration = 5)
     })
 

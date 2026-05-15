@@ -35,6 +35,8 @@ test_that("validate_bed_light rejects non-numeric coords", {
 test_that("detect_file_type maps extensions correctly", {
   expect_equal(detect_file_type("sample.bedgraph"), "bedgraph")
   expect_equal(detect_file_type("sample.gtf"),      "gtf")
+  expect_equal(detect_file_type("sample.gff"),      "gff")
+  expect_equal(detect_file_type("sample.gff3"),     "gff3")
   expect_equal(detect_file_type("sample.narrowPeak"), "narrowPeak")
   expect_equal(detect_file_type("sample.bw"),       "bigwig")
   expect_equal(detect_file_type("sample.xyz"),      "unknown")
@@ -184,8 +186,10 @@ test_that("detect_file_type maps .cool to hic_matrix", {
   expect_equal(detect_file_type("matrix.cool"), "hic_matrix")
 })
 
-test_that("detect_file_type maps .gff3 to gtf", {
-  expect_equal(detect_file_type("genes.gff3"), "gtf")
+test_that("detect_file_type maps .gff3 to gff3", {
+  expect_equal(detect_file_type("genes.gff3"), "gff3")
+  expect_equal(file_type_to_track_type("gff3"), "gtf")
+  expect_equal(file_type_to_track_type("gff"), "gtf")
 })
 
 test_that("detect_file_type maps .bg to bedgraph", {

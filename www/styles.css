@@ -2264,16 +2264,31 @@ label {
 /* Selectize dropdown */
 .selectize-dropdown,
 .selectize-dropdown-content {
-  background: rgba(15, 23, 42, 0.96) !important;
-  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  background: rgba(15, 23, 42, 0.98) !important;
   color: #f8fafc !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  z-index: 99999 !important;
   backdrop-filter: blur(12px);
+}
+
+.selectize-dropdown .option,
+.selectize-dropdown .create {
+  color: #e2e8f0 !important;
+  background: transparent !important;
 }
 
 .selectize-dropdown .option:hover,
 .selectize-dropdown .option.active {
   background: rgba(32, 199, 168, 0.18) !important;
   color: #f8fafc !important;
+}
+
+.rt-card,
+.region-builder-card,
+.gene-picker-card,
+.page-shell,
+.page-grid {
+  overflow: visible !important;
 }
 
 /* ---- Alerts dark ---- */
