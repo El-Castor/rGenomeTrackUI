@@ -38,6 +38,13 @@ mod_inputs_ui <- function(id) {
                   bslib::nav_panel(
                     shiny::tagList(shiny::icon("upload"), " Upload"),
                     shiny::div(class = "mt-2",
+                      shiny::div(
+                        class = "alert alert-info p-2 mb-2",
+                        shiny::icon("info-circle"),
+                        shiny::HTML(" Les fichiers uploadés sont toujours <strong>copiés</strong> dans le projet.
+                          Pour les très gros fichiers (&gt; 100 Mo), privilégiez
+                          <strong>Chemin local + Lien symbolique</strong>.")
+                      ),
                       shiny::fileInput(ns("file_upload"), "Choisir un fichier",
                                        accept = c(".bw", ".bigwig", ".bed", ".bedgraph", ".bg",
                                                   ".gtf", ".gff", ".gff3", ".narrowPeak",
@@ -45,9 +52,6 @@ mod_inputs_ui <- function(id) {
                       shiny::selectInput(ns("upload_track_type"), "Type de track",
                                          choices = c("Auto-détecté" = "")),
                       shiny::uiOutput(ns("upload_format_hint")),
-                      shiny::selectInput(ns("upload_mode"), "Mode d'import",
-                                         choices = c("Copier dans le projet" = "copy",
-                                                     "Lien symbolique" = "link")),
                       shiny::textInput(ns("upload_notes"), "Notes (optionnel)"),
                       shiny::actionButton(ns("btn_add_upload"),
                         shiny::tagList(shiny::icon("plus"), " Ajouter au registre"),
@@ -252,6 +256,30 @@ mod_inputs_server <- function(id, app_state, schema) {
       )
     })
 
+    # ---- Feedback état ajout (pattern correct : reactiveVal lu par renderUI) ----
+    add_result <- shiny::reactiveVal(NULL)  # list(type, msg)
+
+    output$add_feedback <- shiny::renderUI({
+      res <- add_result()
+      if (is.null(res)) return(NULL)
+      alert_class <- switch(res$type,
+        "success" = "alert-success",
+        "error"   = "alert-danger",
+        "warning" = "alert-warning",
+        "alert-info"
+      )
+      icon_name <- switch(res$type,
+        "success" = "check-circle",
+        "error"   = "times-circle",
+        "warning" = "exclamation-triangle",
+        "info-circle"
+      )
+      shiny::div(
+        class = paste("alert mt-2 p-2", alert_class),
+        shiny::icon(icon_name), " ", shiny::HTML(res$msg)
+      )
+    })
+
     # ---- Panel de validation de fichier ----
     pending_file <- shiny::reactiveVal(NULL)  # list(path, name, track_type)
 
@@ -382,18 +410,41 @@ mod_inputs_server <- function(id, app_state, schema) {
     })
 
     # ---- Ajouter un fichier ----
-    do_add_file <- function(path, mode, track_type, notes, original_name = NULL) {
+    do_add_file <- function(path, mode, track_type, notes, original_name = NULL, source_type = "local") {
+      message(sprintf("[Inputs] Adding file to registry"))
+      message(sprintf("[Inputs] source=%s", source_type))
+      message(sprintf("[Inputs] mode=%s", mode))
+      message(sprintf("[Inputs] file_type=%s", track_type %||% "(auto)"))
+      message(sprintf("[Inputs] src=%s", path))
+
       if (is.null(app_state$project_config)) {
-        output$add_feedback <- shiny::renderUI({
-          shiny::div(class = "alert alert-danger mt-2 p-2",
-            shiny::icon("times-circle"),
-            " Aucun projet actif — ouvrez un projet dans l'onglet ",
-            shiny::strong("Projets"), " d'abord.")
-        })
-        return()
+        msg <- "Aucun projet actif \u2014 ouvrez un projet dans l'onglet <strong>Projets</strong> d'abord."
+        message("[Inputs] ERROR: no active project")
+        shiny::showNotification("Aucun projet actif.", type = "error", duration = 6)
+        add_result(list(type = "error", msg = msg))
+        return(invisible(NULL))
       }
+
+      # Upload : interdire le symlink (le fichier temp sera supprimé à la fin de session)
+      warn_symlink <- FALSE
+      if (source_type == "upload" && mode == "link") {
+        message("[Inputs] WARNING: upload+symlink requested, converting to copy")
+        mode <- "copy"
+        warn_symlink <- TRUE
+      }
+
       tryCatch({
-        app_state$registry <- add_file_to_registry(
+        shinyjs::disable("btn_add_upload")
+        shinyjs::disable("btn_add_local")
+        on.exit({
+          shinyjs::enable("btn_add_upload")
+          shinyjs::enable("btn_add_local")
+        })
+
+        proj_path <- app_state$project_config$project_path
+        message(sprintf("[Inputs] project=%s", proj_path))
+
+        updated_reg <- add_file_to_registry(
           project_config = app_state$project_config,
           source_path    = path,
           mode           = mode,
@@ -401,40 +452,83 @@ mod_inputs_server <- function(id, app_state, schema) {
           notes          = notes,
           original_name  = original_name
         )
-        fname <- basename(path)
-        shiny::showNotification(sprintf("Fichier ajouté : %s", fname), type = "message")
-        output$add_feedback <- shiny::renderUI({
-          shiny::div(class = "alert alert-success mt-2 p-2",
-            shiny::icon("check"), sprintf(" Ajouté : %s", fname))
-        })
+        app_state$registry <- updated_reg
+
+        last_entry <- updated_reg[nrow(updated_reg), ]
+        dst        <- last_entry$stored_path %||% ""
+        fname      <- last_entry$original_name %||% basename(path)
+        message(sprintf("[Inputs] dst=%s", dst))
+        message(sprintf("[Inputs] validation=%s", last_entry$status %||% "ok"))
+        message(sprintf("[Inputs] registry updated — %d total entries", nrow(updated_reg)))
+
+        notif_msg <- if (warn_symlink) {
+          sprintf("Fichier ajouté (copié) : %s", fname)
+        } else {
+          sprintf("Fichier ajouté : %s", fname)
+        }
+        shiny::showNotification(notif_msg, type = "message", duration = 5)
+
+        feedback_msg <- if (warn_symlink) {
+          sprintf(
+            "<strong>Ajouté :</strong> %s<br/><small class='text-warning'>🟡 Mode Lien symbolique ignoré pour un fichier uploadé (fichier temporaire) — fichier copié dans le projet.</small>",
+            htmltools::htmlEscape(fname)
+          )
+        } else {
+          sprintf("<strong>Ajouté :</strong> %s &mdash; <small>%s</small>",
+                  htmltools::htmlEscape(fname),
+                  htmltools::htmlEscape(dst))
+        }
+        add_result(list(type = if (warn_symlink) "warning" else "success", msg = feedback_msg))
         pending_file(NULL)
+
+        # Naviguer vers le registre pour que l'utilisateur voie la mise à jour
+        bslib::nav_select(ns("inputs_tabs"), selected = "Registre", session = session)
+
       }, error = function(e) {
-        shiny::showNotification(sprintf("Erreur : %s", e$message), type = "error")
-        output$add_feedback <- shiny::renderUI({
-          shiny::div(class = "alert alert-danger mt-2 p-2",
-            shiny::icon("times"), sprintf(" Erreur : %s", e$message))
-        })
+        msg_err <- conditionMessage(e)
+        message(sprintf("[Inputs] ERROR: %s", msg_err))
+        shiny::showNotification(sprintf("Erreur : %s", msg_err), type = "error", duration = 10)
+        add_result(list(type = "error", msg = htmltools::htmlEscape(msg_err)))
       })
     }
 
     shiny::observeEvent(input$btn_add_upload, {
-      req(input$file_upload)
-      do_add_file(
-        path          = input$file_upload$datapath,
-        mode          = input$upload_mode,
-        track_type    = input$upload_track_type,
-        notes         = input$upload_notes,
-        original_name = input$file_upload$name   # nom original, pas le chemin temp
-      )
-    })
-
-    shiny::observeEvent(input$btn_add_local, {
-      path <- trimws(input$local_path)
-      if (nchar(path) == 0) {
-        shiny::showNotification("Chemin vide.", type = "warning")
+      f <- input$file_upload
+      if (is.null(f)) {
+        shiny::showNotification("Aucun fichier sélectionné.", type = "warning", duration = 5)
+        add_result(list(type = "warning", msg = "Veuillez sélectionner un fichier avant de cliquer sur Ajouter."))
         return()
       }
-      do_add_file(path, input$local_mode, input$local_track_type, input$local_notes)
+      do_add_file(
+        path          = f$datapath,
+        mode          = "copy",   # upload = toujours copy
+        track_type    = input$upload_track_type,
+        notes         = input$upload_notes,
+        original_name = f$name,
+        source_type   = "upload"
+      )
+    }, ignoreNULL = FALSE)
+
+    shiny::observeEvent(input$btn_add_local, {
+      path <- trimws(input$local_path %||% "")
+      if (nchar(path) == 0) {
+        shiny::showNotification("Chemin vide.", type = "warning", duration = 5)
+        add_result(list(type = "warning", msg = "Veuillez saisir un chemin de fichier."))
+        return()
+      }
+      if (!file.exists(path)) {
+        shiny::showNotification(sprintf("Fichier introuvable : %s", path), type = "error", duration = 8)
+        add_result(list(type = "error", msg = sprintf("Fichier introuvable : <code>%s</code>",
+                                                       htmltools::htmlEscape(path))))
+        return()
+      }
+      do_add_file(
+        path        = path,
+        mode        = input$local_mode,
+        track_type  = input$local_track_type,
+        notes       = input$local_notes,
+        source_type = "local"
+      )
     })
 
     shiny::observeEvent(input$btn_remove, {

@@ -65,6 +65,9 @@ add_file_to_registry <- function(project_config, source_path, mode = "copy", tra
   detected_type <- detect_file_type(original_name)  # utilise le vrai nom, pas le chemin temp
   track_type_final <- if (!is.null(track_type) && nchar(trimws(track_type)) > 0) track_type else detected_type
 
+  message(sprintf("[file_registry] file_id=%s  original_name=%s  detected_type=%s  track_type=%s  mode=%s",
+                  file_id, original_name, detected_type, track_type_final, mode))
+
   project_path <- project_config$project_path
   if (mode == "copy") {
     dest_dir <- file.path(project_path, "inputs", "raw")
@@ -77,6 +80,7 @@ add_file_to_registry <- function(project_config, source_path, mode = "copy", tra
       dest_path  <- file.path(dest_dir, paste0(name_noext, "_", substr(file_id, 6, 20), ".", ext))
     }
     file.copy(source_path, dest_path)
+    message(sprintf("[file_registry] copied to %s", dest_path))
     stored_path       <- dest_path
     linked_or_copied  <- "copied"
   } else {
@@ -84,7 +88,9 @@ add_file_to_registry <- function(project_config, source_path, mode = "copy", tra
     ensure_dir(dest_dir)
     dest_path <- file.path(dest_dir, original_name)
     if (!file.exists(dest_path)) {
-      file.symlink(normalizePath(source_path), dest_path)
+      ok <- file.symlink(normalizePath(source_path, mustWork = FALSE), dest_path)
+      if (!ok) stop(sprintf("Impossible de cr\u00e9er le lien symbolique vers : %s", source_path))
+      message(sprintf("[file_registry] symlinked to %s", dest_path))
     }
     stored_path      <- dest_path
     linked_or_copied <- "linked"
