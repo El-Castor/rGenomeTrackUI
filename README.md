@@ -1,8 +1,11 @@
 # rGenomeTrackUI
 
+![rGenomeTrackUI](assets/banniere.png)
+
 **Interface graphique locale pour la génération de figures de genomic tracks via rGenomeTracks et pyGenomeTracks.**
 
-[![Phase](https://img.shields.io/badge/phase-MVP%201--6%20complètes-brightgreen)](https://github.com)
+[![Phase](https://img.shields.io/badge/phase-v0.4%20dark%20theme-blueviolet)](https://github.com)
+[![Tests](https://img.shields.io/badge/tests-434%20passed-brightgreen)](tests/testthat)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
 
 ---
@@ -45,8 +48,12 @@ Elle s'appuie sur :
 - **Génération automatique** — `tracks.ini`, `run_rGenomeTracks.R`, `run_pyGenomeTracks.sh`
 - **Exécution intégrée** — lance rGenomeTracks ou pyGenomeTracks depuis l'interface, avec logs en temps réel
 - **Historique des runs** — navigation, duplication, suppression
+- **Sélection guidée de région** — analyse les chromosomes depuis vos fichiers (BigWig, GFF, BED), propose un sélecteur avec les vraies tailles, avertit en cas d'incompatibilité de noms entre fichiers
+- **Gene picker** — sélectionnez un gène depuis les fichiers GFF/GTF et générez automatiquement la région avec marges
+- **Parcourir les fichiers** — bouton « Parcourir » (shinyFiles) pour les chemins locaux
+- **Thème dark** — interface sombre soignée (bslib Flatly dark)
 - **Projet démo** — données d'exemple chr1 chargées en un clic
-- **Tests unitaires** — couverture de toutes les fonctions core via testthat
+- **Tests unitaires** — 434 tests couvrant toutes les fonctions core via testthat
 
 ---
 
@@ -225,6 +232,7 @@ Les fichiers de tests couvrent :
 - `test_r_script_generator.R` — génération du script run_rGenomeTracks.R
 - `test_config_generator.R` — intégration : prepare_run_files
 - `test_templates.R` — liste, chargement, application de templates
+- `test_genome_index.R` — parseur BigWig binaire, inspecteurs GFF/BED, index chromosomique, cache, gene picker
 
 ---
 
@@ -459,9 +467,13 @@ rGenomeTrackUI/
 │   ├── check_r_dependencies.R     # Vérification des packages R
 │   └── check_pygenometracks.sh    # Vérification de pyGenomeTracks
 │
+├── assets/
+│   └── banniere.png               # Bannière du projet
+│
 ├── R/
 │   ├── modules/                   # Modules Shiny (Phase 3+)
 │   └── core/                      # Logique métier (Phase 1+)
+│       └── genome_index.R         # Index chromosomique (BigWig/GFF/BED parser + cache)
 │
 ├── templates/                     # Templates de configurations de tracks (Phase 5)
 ├── example_data/                  # Données d'exemple pour le projet démo (Phase 1)
@@ -507,6 +519,7 @@ Toutes les commandes de cette documentation supposent que l'environnement `rgeno
 | **Phase 4** | ✅ Complète | Exécution des runs via processx, logs, visualisation des figures |
 | **Phase 5** | ✅ Complète | Historique, templates (5 prédéfinis), duplication de runs, sauvegarde de template |
 | **Phase 6** | ✅ Complète | Données d'exemple, tests unitaires (9 fichiers), projet démo, documentation complète |
+| **v0.4** | 🔄 En cours | Thème dark, sélection guidée de région (index chromosomique), gene picker, parcourir fichiers locaux |
 
 ---
 
