@@ -27,13 +27,76 @@ mod_region_settings_ui <- function(id) {
           ),
           bslib::navset_tab(
             bslib::nav_panel(
-              shiny::tagList(shiny::icon("crosshairs"), " Région unique"),
+              shiny::tagList(shiny::icon("magic"), " S\u00e9lection guid\u00e9e"),
+              shiny::div(class = "mt-2",
+
+                # ---- Analyse ----
+                shiny::div(
+                  class = "d-flex gap-2 align-items-center mb-2",
+                  shiny::actionButton(ns("btn_analyze_chroms"),
+                    shiny::tagList(shiny::icon("dna"), " Analyser les chromosomes"),
+                    class = "btn btn-secondary btn-sm"),
+                  shiny::uiOutput(ns("chrom_index_badge"))
+                ),
+                shiny::uiOutput(ns("chrom_compat_alert")),
+
+                # ---- S\u00e9lecteur chromosome ----
+                shiny::div(id = ns("chrom_picker_block"),
+                  shiny::selectInput(
+                    ns("guided_chrom"),
+                    shiny::tagList(shiny::icon("list"), " Chromosome / contig"),
+                    choices  = c("— analyser d\u2019abord —" = ""),
+                    selected = ""
+                  ),
+                  shiny::uiOutput(ns("chrom_size_info")),
+
+                  # ---- Start / End ----
+                  shiny::div(
+                    class = "chrom-index-card",
+                    shiny::fluidRow(
+                      shiny::column(6,
+                        shiny::numericInput(ns("guided_start"), "D\u00e9but (bp)", value = 1L,
+                                            min = 1L, max = 1e12, step = 1L)
+                      ),
+                      shiny::column(6,
+                        shiny::numericInput(ns("guided_end"), "Fin (bp)", value = 100000L,
+                                            min = 2L, max = 1e12, step = 1L)
+                      )
+                    ),
+
+                    # ---- Fen\u00eatres rapides ----
+                    shiny::div(
+                      class = "mb-2",
+                      shiny::tags$small(class = "text-muted d-block mb-1", "Fen\u00eatre rapide :"),
+                      shiny::div(
+                        class = "d-flex gap-1 flex-wrap",
+                        shiny::actionButton(ns("win_50k"),  "50 kb",  class = "btn btn-outline-secondary btn-sm region-chip"),
+                        shiny::actionButton(ns("win_100k"), "100 kb", class = "btn btn-outline-secondary btn-sm region-chip"),
+                        shiny::actionButton(ns("win_250k"), "250 kb", class = "btn btn-outline-secondary btn-sm region-chip"),
+                        shiny::actionButton(ns("win_500k"), "500 kb", class = "btn btn-outline-secondary btn-sm region-chip"),
+                        shiny::actionButton(ns("win_1m"),   "1 Mb",   class = "btn btn-outline-secondary btn-sm region-chip")
+                      )
+                    ),
+
+                    shiny::uiOutput(ns("guided_region_preview")),
+                    shiny::actionButton(ns("btn_add_guided_region"),
+                      shiny::tagList(shiny::icon("plus"), " Ajouter cette r\u00e9gion"),
+                      class = "btn btn-primary w-100 mt-1")
+                  )
+                ),
+
+                # ---- Gene picker ----
+                shiny::uiOutput(ns("gene_picker_block"))
+              )
+            ),
+            bslib::nav_panel(
+              shiny::tagList(shiny::icon("crosshairs"), " Saisie manuelle"),
               shiny::div(class = "mt-2",
                 shiny::div(class = "alert alert-info p-2 mb-2",
                   shiny::icon("info-circle"),
                   shiny::HTML(" Format : <code>chr:start-end</code> &nbsp; Ex : <code>chr1:1000000-1250000</code>")
                 ),
-                shiny::textInput(ns("region_single"), "Région", placeholder = "chr1:1000000-1250000"),
+                shiny::textInput(ns("region_single"), "R\u00e9gion", placeholder = "chr1:1000000-1250000"),
                 shiny::div(class = "d-flex gap-2 flex-wrap mb-1",
                   shiny::tags$small(class = "text-muted", "Exemples rapides :"),
                   shiny::actionLink(ns("ex_reg1"), "chr1:1000-20000"),
@@ -42,7 +105,7 @@ mod_region_settings_ui <- function(id) {
                 ),
                 shiny::uiOutput(ns("region_validate_ui")),
                 shiny::actionButton(ns("btn_add_region"),
-                  shiny::tagList(shiny::icon("plus"), " Ajouter la région"),
+                  shiny::tagList(shiny::icon("plus"), " Ajouter la r\u00e9gion"),
                   class = "btn btn-primary btn-sm mt-1")
               )
             ),
@@ -151,6 +214,349 @@ mod_region_settings_server <- function(id, app_state) {
         shiny::updateTextInput(session, "output_basename", value = fs$output_basename %||% "figure")
       }
     })
+
+    # =========================================================================
+    # Chromosome index (guided region selection)
+    # =========================================================================
+
+    # reactiveVal holding the last index result or NULL
+    chrom_index_rv <- shiny::reactiveVal(NULL)
+
+    # Helper: get file IDs from active tracks
+    .active_file_ids <- function() {
+      trks <- app_state$tracks %||% list()
+      if (length(trks) == 0L) return(NULL)
+      ids <- vapply(trks, function(t) t$file_id %||% "", character(1L))
+      ids <- ids[!is.na(ids) & nchar(ids) > 0L & ids != "NULL"]
+      if (length(ids) == 0L) NULL else ids
+    }
+
+    # Auto-refresh index when project or registry changes
+    shiny::observe({
+      proj <- app_state$project_config
+      reg  <- app_state$registry
+      if (is.null(proj) || is.null(reg) || nrow(reg) == 0L) {
+        chrom_index_rv(NULL)
+        return()
+      }
+      # Try cache first
+      cache <- load_chrom_index_cache(proj)
+      if (is_chrom_index_cache_valid(cache, reg)) {
+        message("[genome_index] Using cached chrom index.")
+        # Rebuild index result from cache
+        idx_df <- tryCatch(
+          as.data.frame(cache$index, stringsAsFactors = FALSE),
+          error = function(e) NULL
+        )
+        if (!is.null(idx_df) && nrow(idx_df) > 0L) {
+          chrom_index_rv(list(
+            index      = idx_df,
+            compat     = cache$compat %||% "ok",
+            compat_msg = cache$compat_msg %||% "",
+            per_file   = list()
+          ))
+          return()
+        }
+      }
+    })
+
+    # Manual / forced build
+    shiny::observeEvent(input$btn_analyze_chroms, {
+      proj <- app_state$project_config
+      reg  <- app_state$registry
+      if (is.null(proj)) {
+        shiny::showNotification("Aucun projet actif.", type = "warning")
+        return()
+      }
+      if (is.null(reg) || nrow(reg) == 0L) {
+        shiny::showNotification("Registre vide — ajoutez des fichiers d'abord.", type = "warning")
+        return()
+      }
+
+      active_ids <- .active_file_ids()
+      ids_to_use <- if (!is.null(active_ids)) active_ids else NULL
+
+      shiny::showNotification("Analyse des chromosomes en cours\u2026", id = "chrom_notif",
+                              duration = NULL, type = "message")
+      tryCatch({
+        result <- build_project_chrom_index(proj, reg, active_file_ids = ids_to_use)
+        chrom_index_rv(result)
+        save_chrom_index_cache(result, reg, proj)
+        shiny::removeNotification("chrom_notif")
+        n <- if (!is.null(result$index)) nrow(result$index) else 0L
+        shiny::showNotification(sprintf("%d chromosome(s) d\u00e9tect\u00e9(s).", n),
+                                type = "message", duration = 4)
+      }, error = function(e) {
+        shiny::removeNotification("chrom_notif")
+        shiny::showNotification(sprintf("Erreur analyse : %s", e$message), type = "error", duration = 8)
+      })
+    })
+
+    # Update chromosome selectInput when index changes
+    shiny::observe({
+      res <- chrom_index_rv()
+      if (is.null(res) || is.null(res$index) || nrow(res$index) == 0L) {
+        shiny::updateSelectInput(session, "guided_chrom",
+          choices = c("— analyser d\u2019abord —" = ""), selected = "")
+        return()
+      }
+      idx <- res$index
+      # Build labels: "Bd1 — 75.6 Mb — BigWig+GFF"
+      sizes_str <- vapply(idx$length, function(l) {
+        if (is.na(l) || l <= 0L) return("taille inconnue")
+        if (l >= 1e9) sprintf("%.0f Gb", l / 1e9)
+        else if (l >= 1e6) sprintf("%.1f Mb", l / 1e6)
+        else if (l >= 1e3) sprintf("%.0f kb", l / 1e3)
+        else sprintf("%d bp", as.integer(l))
+      }, character(1L))
+      labels <- paste0(idx$chrom, " \u2014 ", sizes_str,
+                       " \u2014 ", gsub("\\+", " + ", idx$source_types))
+      choices <- stats::setNames(idx$chrom, labels)
+      shiny::updateSelectInput(session, "guided_chrom", choices = choices, selected = idx$chrom[1L])
+    })
+
+    # ---- Compatibility badge ----
+    output$chrom_index_badge <- shiny::renderUI({
+      res <- chrom_index_rv()
+      if (is.null(res)) return(NULL)
+      n <- if (!is.null(res$index)) nrow(res$index) else 0L
+      cls <- switch(res$compat,
+        "ok"      = "badge bg-success",
+        "warning" = "badge bg-warning text-dark",
+        "error"   = "badge bg-danger",
+        "badge bg-secondary"
+      )
+      shiny::tags$span(class = cls, sprintf("%d chr", n))
+    })
+
+    output$chrom_compat_alert <- shiny::renderUI({
+      res <- chrom_index_rv()
+      if (is.null(res) || res$compat == "ok") return(NULL)
+      alert_cls <- if (res$compat == "error") "alert alert-danger p-2 mt-1" else "alert alert-warning p-2 mt-1"
+      icon_name  <- if (res$compat == "error") "times-circle" else "exclamation-triangle"
+      shiny::div(class = alert_cls,
+        shiny::icon(icon_name), " ", shiny::HTML(htmltools::htmlEscape(res$compat_msg)))
+    })
+
+    # ---- Chromosome size info ----
+    output$chrom_size_info <- shiny::renderUI({
+      res   <- chrom_index_rv()
+      ch    <- input$guided_chrom
+      if (is.null(res) || is.null(res$index) || is.null(ch) || ch == "") return(NULL)
+      row <- res$index[res$index$chrom == ch, , drop = FALSE]
+      if (nrow(row) == 0L) return(NULL)
+      l <- row$length[1L]
+      src <- row$length_source[1L]
+      src_label <- switch(src,
+        "bigwig_header"          = "BigWig header",
+        "gff3_sequence_region"   = "GFF3 ##sequence-region",
+        "inferred_from_features" = paste0("estim\u00e9 depuis ", row$n_features[1L], " features"),
+        src
+      )
+      # compatibility badge per chromosome
+      badges <- character(0)
+      if (isTRUE(row$in_bigwig[1L])) badges <- c(badges, '<span class="badge bg-info text-dark me-1">BigWig</span>')
+      if (isTRUE(row$in_gff[1L]))    badges <- c(badges, '<span class="badge bg-primary me-1">GFF/GTF</span>')
+      if (isTRUE(row$in_text[1L]))   badges <- c(badges, '<span class="badge bg-secondary me-1">BED/BedGraph</span>')
+      size_str <- if (!is.na(l) && l > 0L) {
+        if (l >= 1e6) sprintf("%s bp (%.1f Mb)", format(as.integer(l), big.mark = "\u00a0"), l / 1e6)
+        else          sprintf("%s bp", format(as.integer(l), big.mark = "\u00a0"))
+      } else "taille inconnue"
+
+      shiny::div(class = "chrom-size-info mb-2 p-2",
+        shiny::HTML(paste(badges, collapse = "")),
+        shiny::tags$small(class = "d-block text-muted mt-1",
+          sprintf("Taille : %s \u2014 Source : %s", size_str, src_label)
+        )
+      )
+    })
+
+    # ---- Update start/end max when chromosome changes ----
+    shiny::observe({
+      res <- chrom_index_rv()
+      ch  <- input$guided_chrom
+      if (is.null(res) || is.null(res$index) || is.null(ch) || ch == "") return()
+      row <- res$index[res$index$chrom == ch, , drop = FALSE]
+      if (nrow(row) == 0L) return()
+      chrom_len <- as.integer(row$length[1L])
+      if (is.na(chrom_len) || chrom_len <= 0L) return()
+      cur_end <- input$guided_end %||% 100000L
+      new_end <- min(cur_end, chrom_len)
+      shiny::updateNumericInput(session, "guided_start", max = chrom_len - 1L)
+      shiny::updateNumericInput(session, "guided_end",   max = chrom_len, value = new_end)
+    })
+
+    # ---- Quick windows ----
+    .apply_window <- function(size_bp) {
+      s   <- max(1L, as.integer(input$guided_start %||% 1L))
+      res <- chrom_index_rv()
+      ch  <- input$guided_chrom %||% ""
+      chrom_len <- if (!is.null(res) && !is.null(res$index) && ch != "") {
+        row <- res$index[res$index$chrom == ch, , drop = FALSE]
+        if (nrow(row) > 0L) as.integer(row$length[1L]) else NA_integer_
+      } else NA_integer_
+      e_raw <- s + as.integer(size_bp) - 1L
+      e <- if (!is.na(chrom_len) && chrom_len > 0L) min(e_raw, chrom_len) else e_raw
+      shiny::updateNumericInput(session, "guided_end", value = e)
+    }
+    shiny::observeEvent(input$win_50k,  { .apply_window(50000L)   })
+    shiny::observeEvent(input$win_100k, { .apply_window(100000L)  })
+    shiny::observeEvent(input$win_250k, { .apply_window(250000L)  })
+    shiny::observeEvent(input$win_500k, { .apply_window(500000L)  })
+    shiny::observeEvent(input$win_1m,   { .apply_window(1000000L) })
+
+    # ---- Preview of the guided region ----
+    output$guided_region_preview <- shiny::renderUI({
+      ch <- input$guided_chrom %||% ""
+      s  <- as.integer(input$guided_start %||% 1L)
+      e  <- as.integer(input$guided_end   %||% 100000L)
+      if (nchar(ch) == 0L || is.na(s) || is.na(e)) return(NULL)
+      if (s >= e) {
+        return(shiny::div(class = "alert alert-danger p-1 small mt-1",
+          shiny::icon("times-circle"), " Le d\u00e9but doit \u00eatre \u003c la fin."))
+      }
+      region_str <- sprintf("%s:%d-%d", ch, s, e)
+      width_bp   <- e - s
+      width_str  <- if (width_bp >= 1e6) sprintf("%.2f Mb", width_bp / 1e6)
+                    else if (width_bp >= 1e3) sprintf("%.1f kb", width_bp / 1e3)
+                    else sprintf("%d bp", width_bp)
+
+      # Validate against index
+      ci  <- chrom_index_rv()
+      val <- validate_region_against_index(region_str,
+                                            if (!is.null(ci)) ci$index else NULL)
+      val_ui <- if (val$status == "ok") {
+        shiny::div(class = "text-success small", shiny::icon("check-circle"), " R\u00e9gion valide")
+      } else if (val$status == "warning") {
+        shiny::div(class = "alert alert-warning p-1 small mt-1",
+          shiny::icon("exclamation-triangle"), " ", shiny::HTML(htmltools::htmlEscape(
+            paste(val$messages, collapse = " | "))))
+      } else {
+        shiny::div(class = "alert alert-danger p-1 small mt-1",
+          shiny::icon("times-circle"), " ", shiny::HTML(htmltools::htmlEscape(
+            paste(val$messages, collapse = " | "))))
+      }
+
+      shiny::tagList(
+        shiny::div(class = "region-preview-chip mt-1 mb-2",
+          shiny::tags$code(region_str),
+          shiny::tags$small(class = "text-muted ms-2", sprintf("(%s)", width_str))
+        ),
+        val_ui
+      )
+    })
+
+    # ---- Add guided region ----
+    shiny::observeEvent(input$btn_add_guided_region, {
+      ch <- input$guided_chrom %||% ""
+      s  <- as.integer(input$guided_start %||% 1L)
+      e  <- as.integer(input$guided_end   %||% 100000L)
+      if (nchar(ch) == 0L) {
+        shiny::showNotification("S\u00e9lectionnez un chromosome.", type = "warning"); return()
+      }
+      if (is.na(s) || is.na(e) || s >= e) {
+        shiny::showNotification("D\u00e9but doit \u00eatre < fin.", type = "warning"); return()
+      }
+      region_str <- sprintf("%s:%d-%d", ch, s, e)
+      existing   <- app_state$regions %||% character(0)
+      if (region_str %in% existing) {
+        shiny::showNotification("Cette r\u00e9gion est d\u00e9j\u00e0 dans la liste.", type = "warning")
+        return()
+      }
+      app_state$regions <- c(existing, region_str)
+      shiny::showNotification(sprintf("R\u00e9gion ajout\u00e9e : %s", region_str),
+                              type = "message", duration = 4)
+    })
+
+    # =========================================================================
+    # Gene picker (bonus — only shown when a GFF is in the registry)
+    # =========================================================================
+
+    gene_index_rv <- shiny::reactiveVal(NULL)
+
+    shiny::observe({
+      reg <- app_state$registry
+      if (is.null(reg) || nrow(reg) == 0L) { gene_index_rv(NULL); return() }
+      gff_rows <- reg[tolower(reg$file_type_detected %||% "") %in% c("gtf", "gff", "gff3"), , drop = FALSE]
+      if (nrow(gff_rows) == 0L) { gene_index_rv(NULL); return() }
+      # Build gene index from the first GFF file (or all if small)
+      all_genes <- lapply(seq_len(min(nrow(gff_rows), 2L)), function(i) {
+        inspect_gff_genes(gff_rows$stored_path[i])
+      })
+      combined <- do.call(rbind, Filter(Negate(is.null), all_genes))
+      gene_index_rv(combined)
+    })
+
+    output$gene_picker_block <- shiny::renderUI({
+      gi <- gene_index_rv()
+      if (is.null(gi) || nrow(gi) == 0L) return(NULL)
+
+      choices <- stats::setNames(
+        seq_len(nrow(gi)),
+        paste0(gi$name, "  [", gi$chrom, ":", gi$start, "-", gi$end, "]")
+      )
+
+      shiny::tags$div(
+        class = "gene-picker-card mt-3",
+        shiny::tags$div(
+          class = "gene-picker-header mb-2",
+          shiny::icon("dna"), " ",
+          shiny::tags$strong("R\u00e9gion autour d\u2019un g\u00e8ne"),
+          shiny::tags$small(class = "text-muted ms-2",
+                            sprintf("%d g\u00e8nes index\u00e9s", nrow(gi)))
+        ),
+        shiny::selectizeInput(ns("gene_picker_sel"), "Choisir un g\u00e8ne",
+          choices  = c("— tapez pour chercher —" = "", choices),
+          selected = "",
+          options  = list(maxOptions = 200L, placeholder = "tapez un ID ou nom\u2026")
+        ),
+        shiny::selectInput(ns("gene_flank"), "Flanquement",
+          choices = c("1 kb" = 1000, "5 kb" = 5000, "10 kb" = 10000,
+                      "50 kb" = 50000, "100 kb" = 100000),
+          selected = 5000
+        ),
+        shiny::actionButton(ns("btn_add_gene_region"),
+          shiny::tagList(shiny::icon("plus"), " Ajouter r\u00e9gion autour du g\u00e8ne"),
+          class = "btn btn-outline-primary btn-sm w-100 mt-1")
+      )
+    })
+
+    shiny::observeEvent(input$btn_add_gene_region, {
+      gi  <- gene_index_rv()
+      sel <- as.integer(input$gene_picker_sel %||% "")
+      if (is.null(gi) || is.null(sel) || is.na(sel) || sel < 1L || sel > nrow(gi)) {
+        shiny::showNotification("S\u00e9lectionnez un g\u00e8ne.", type = "warning"); return()
+      }
+      flank    <- as.integer(input$gene_flank %||% 5000)
+      gene_row <- gi[sel, ]
+      ch   <- gene_row$chrom
+      s    <- max(1L, gene_row$start - flank)
+      e_raw <- gene_row$end + flank
+
+      # Clamp to chromosome length if known
+      ci  <- chrom_index_rv()
+      if (!is.null(ci) && !is.null(ci$index)) {
+        row_ch <- ci$index[ci$index$chrom == ch, , drop = FALSE]
+        if (nrow(row_ch) > 0L) {
+          chrom_len <- as.integer(row_ch$length[1L])
+          if (!is.na(chrom_len) && chrom_len > 0L) e_raw <- min(e_raw, chrom_len)
+        }
+      }
+      region_str <- sprintf("%s:%d-%d", ch, s, e_raw)
+      existing   <- app_state$regions %||% character(0)
+      if (region_str %in% existing) {
+        shiny::showNotification("D\u00e9j\u00e0 dans la liste.", type = "warning"); return()
+      }
+      app_state$regions <- c(existing, region_str)
+      shiny::showNotification(
+        sprintf("R\u00e9gion ajout\u00e9e : %s (\u00b1%s autour de %s)",
+                region_str, format(flank, big.mark = " "), gene_row$name),
+        type = "message", duration = 5)
+    })
+
+    # =========================================================================
+    # Manual input (legacy)
+    # =========================================================================
 
     # Exemples rapides
     shiny::observeEvent(input$ex_reg1, {
