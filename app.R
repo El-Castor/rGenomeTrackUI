@@ -127,14 +127,17 @@ ui <- bslib::page_navbar(
     base_font   = bslib::font_google("Inter", wght = c(300, 400, 500, 600, 700)),
     "navbar-bg" = "#102a43"
   ),
-  collapsible = TRUE,
+  navbar_options = bslib::navbar_options(
+    bg          = "#102a43",
+    collapsible = TRUE
+  ),
   header = shiny::tagList(
     shinyjs::useShinyjs(),
     shiny::tags$head(
       shiny::tags$link(
         rel  = "stylesheet",
         type = "text/css",
-        href = "assets/styles.css?v=ui-polish-v03"
+        href = "assets/styles.css?v=v04-dark-all"
       ),
       shiny::tags$script(src = "assets/app.js")
     )
