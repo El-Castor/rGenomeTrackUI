@@ -9,12 +9,24 @@
 mod_track_builder_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Track Builder"),
+
+    omics_banner(
+      "Track Builder",
+      "Configurez les tracks génomiques à visualiser.",
+      small = TRUE
+    ),
+
     shiny::uiOutput(ns("project_check")),
+
     shiny::fluidRow(
       shiny::column(4,
-        bslib::card(
-          bslib::card_header(shiny::icon("plus-circle"), " Ajouter une track"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("plus-circle")),
+            shiny::tags$h5("Ajouter une track")
+          ),
           shiny::selectInput(ns("new_track_type"), "Type de track",
                              choices = c("—" = "")),
           shiny::uiOutput(ns("track_type_help")),
@@ -24,42 +36,75 @@ mod_track_builder_ui <- function(id) {
           shiny::uiOutput(ns("file_compat_warning")),
           shiny::div(class = "d-flex gap-2 mb-2",
             shiny::actionButton(ns("btn_add_track"),
-              shiny::icon("plus"), " Ajouter",
+              shiny::tagList(shiny::icon("plus"), " Ajouter"),
               class = "btn btn-primary flex-fill"),
             shiny::actionButton(ns("btn_add_xaxis"),
-              "＋ x-axis", class = "btn btn-outline-secondary btn-sm"),
+              "+ x-axis", class = "btn btn-secondary btn-sm"),
             shiny::actionButton(ns("btn_add_spacer"),
-              "＋ espace", class = "btn btn-outline-secondary btn-sm")
+              "+ espace", class = "btn btn-secondary btn-sm")
           ),
-          shiny::hr(),
-          shiny::h6("Templates"),
+          shiny::tags$hr(class = "divider"),
+          shiny::tags$h6(class = "text-muted mb-2", "Templates"),
           shiny::selectInput(ns("template_select"), NULL,
                              choices = c("—" = "")),
-          shiny::actionButton(ns("btn_apply_template"), "Appliquer le template",
-                              class = "btn btn-outline-info btn-sm w-100")
+          shiny::div(class = "d-flex gap-2",
+            shiny::actionButton(ns("btn_apply_template"),
+              shiny::tagList(shiny::icon("layer-group"), " Appliquer"),
+              class = "btn btn-secondary btn-sm flex-fill"),
+            shiny::actionButton(ns("btn_tmpl_replace"),
+              shiny::tagList(shiny::icon("sync"), " Remplacer"),
+              class = "btn btn-secondary btn-sm"),
+            shiny::actionButton(ns("btn_tmpl_append"),
+              shiny::tagList(shiny::icon("plus"), " Ajouter"),
+              class = "btn btn-secondary btn-sm")
+          )
         )
       ),
       shiny::column(8,
-        bslib::card(
-          bslib::card_header(shiny::icon("list"), " Tracks configurées"),
-          DT::DTOutput(ns("tracks_table")),
-          shiny::br(),
-          shiny::div(class = "d-flex gap-2 flex-wrap",
-            shiny::actionButton(ns("btn_toggle"), shiny::icon("eye"), " Activer/Désactiver",
-                                class = "btn btn-sm btn-outline-warning"),
-            shiny::actionButton(ns("btn_dup"),    shiny::icon("copy"), " Dupliquer",
-                                class = "btn btn-sm btn-outline-secondary"),
-            shiny::actionButton(ns("btn_delete"), shiny::icon("trash"), " Supprimer",
-                                class = "btn btn-sm btn-outline-danger"),
-            shiny::actionButton(ns("btn_up"),   shiny::icon("arrow-up"),   " Monter",
-                                class = "btn btn-sm btn-outline-dark"),
-            shiny::actionButton(ns("btn_down"), shiny::icon("arrow-down"), " Descendre",
-                                class = "btn btn-sm btn-outline-dark")
-          )
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header flex-between",
+            shiny::tags$div(
+              class = "flex-row gap-8",
+              shiny::tags$span(class = "rt-card-icon", shiny::icon("list")),
+              shiny::tags$h5("Tracks configurées")
+            ),
+            shiny::tags$div(
+              class = "d-flex gap-2",
+              shiny::actionButton(ns("btn_toggle"),
+                shiny::tagList(shiny::icon("eye"), " On/Off"),
+                class = "btn btn-secondary btn-sm"),
+              shiny::actionButton(ns("btn_dup"),
+                shiny::tagList(shiny::icon("copy"), " Dup"),
+                class = "btn btn-secondary btn-sm"),
+              shiny::actionButton(ns("btn_delete"),
+                shiny::tagList(shiny::icon("trash")),
+                class = "btn btn-danger btn-sm"),
+              shiny::actionButton(ns("btn_up"),
+                shiny::icon("arrow-up"),
+                class = "btn btn-secondary btn-sm"),
+              shiny::actionButton(ns("btn_down"),
+                shiny::icon("arrow-down"),
+                class = "btn btn-secondary btn-sm")
+            )
+          ),
+          DT::DTOutput(ns("tracks_table"))
         ),
-        bslib::card(
-          bslib::card_header(shiny::icon("sliders-h"), " Paramètres de la track sélectionnée"),
-          shiny::uiOutput(ns("edit_params_ui"))
+        shiny::tags$div(
+          class = "rt-card mt-3",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("sliders-h")),
+            shiny::tags$h5("Paramètres de la track sélectionnée")
+          ),
+          shiny::uiOutput(ns("edit_params_ui")),
+          shiny::tags$div(
+            class = "d-flex gap-2 mt-2",
+            shiny::actionButton(ns("btn_save_params"),
+              shiny::tagList(shiny::icon("save"), " Enregistrer"),
+              class = "btn btn-primary")
+          )
         )
       )
     )

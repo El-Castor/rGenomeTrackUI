@@ -9,69 +9,96 @@
 #' @export
 mod_dashboard_ui <- function(id) {
   ns <- shiny::NS(id)
-  shiny::tagList(
-    shiny::tags$head(shiny::tags$style(shiny::HTML("
-      .workflow-step-dash { display:flex; align-items:flex-start; gap:0.75rem;
-        padding:0.6rem 0.75rem; border-radius:6px; margin-bottom:0.5rem; }
-      .workflow-step-dash.done   { background:#d1e7dd; }
-      .workflow-step-dash.active { background:#cfe2ff; border-left:4px solid #0d6efd; }
-      .workflow-step-dash.todo   { background:#f8f9fa; }
-      .step-num-dash { font-weight:bold; min-width:1.5rem; color:#6c757d; }
-    "))),
-    shiny::fluidRow(
-      shiny::column(12,
-        shiny::h2(shiny::icon("chart-bar"), " rGenomeTrackUI"),
-        shiny::p(shiny::em("Interface graphique pour pyGenomeTracks — visualisation de données génomiques multi-niveaux."),
-                 class = "lead text-muted mb-3"),
-        shiny::hr()
+  shiny::tags$div(
+    class = "dashboard-page",
+
+    # ── Hero (section sémantique) ─────────────────────────────────────────
+    shiny::tags$section(
+      class = "dashboard-hero",
+      shiny::tags$div(
+        class = "dashboard-hero-content",
+        shiny::tags$h1(
+          shiny::tags$span(class = "accent", "rGenome"),
+          "TrackUI"
+        ),
+        shiny::tags$p(
+          "Build reproducible genomic track figures from BED, BigWig, GTF, peaks and regions."
+        ),
+        shiny::tags$div(
+          class = "dashboard-hero-actions",
+          shiny::actionButton(
+            ns("btn_demo"),
+            shiny::tagList(shiny::icon("flask"), " Demo project"),
+            class = "btn btn-primary btn-cta"
+          ),
+          shiny::actionButton(
+            ns("btn_new_project"),
+            shiny::tagList(shiny::icon("folder-plus"), " New project"),
+            class = "btn btn-secondary btn-cta"
+          )
+        )
       )
     ),
-    shiny::fluidRow(
-      # ---- Colonne gauche : Workflow + Actions ----
-      shiny::column(7,
-        bslib::card(
-          bslib::card_header(shiny::icon("route"), " Workflow — Par où commencer ?"),
-          shiny::uiOutput(ns("workflow_steps_ui")),
-          shiny::hr(),
-          shiny::div(class = "d-flex gap-2 flex-wrap",
-            shiny::actionButton(ns("btn_new_project"),
-              shiny::icon("folder-plus"), " Créer un projet",
-              class = "btn btn-primary btn-sm"),
-            shiny::actionButton(ns("btn_open_project"),
-              shiny::icon("folder-open"), " Ouvrir un projet",
-              class = "btn btn-outline-secondary btn-sm"),
-            shiny::actionButton(ns("btn_demo"),
-              shiny::icon("flask"), " Projet démo",
-              class = "btn btn-outline-info btn-sm"),
-            shiny::actionButton(ns("btn_docs"),
-              shiny::icon("book"), " Documentation",
-              class = "btn btn-outline-dark btn-sm"),
-            shiny::actionButton(ns("btn_history"),
-              shiny::icon("history"), " Historique",
-              class = "btn btn-outline-secondary btn-sm"),
-            shiny::downloadButton(ns("dl_templates_dash"),
-              "Templates (ZIP)",
-              class = "btn btn-outline-secondary btn-sm")
-          )
+
+    # ── Stepper (dynamic) ─────────────────────────────────────────────────
+    shiny::uiOutput(ns("workflow_steps_ui")),
+
+    # ── Dashboard grid ────────────────────────────────────────────────────
+    shiny::tags$div(
+      class = "dashboard-grid",
+
+      # ── Main column ──────────────────────────────────────────────────
+      shiny::tags$main(
+        class = "dashboard-main",
+
+        # Métrique cards (chaque renderUI retourne un .rt-metric-card)
+        shiny::tags$div(
+          class = "dashboard-metric-grid",
+          shiny::uiOutput(ns("stat_inputs")),
+          shiny::uiOutput(ns("stat_tracks")),
+          shiny::uiOutput(ns("stat_regions"))
         ),
-        bslib::card(
-          bslib::card_header(shiny::icon("project-diagram"), " Projet actif"),
-          shiny::uiOutput(ns("active_project_ui"))
+
+        # Projet actif (renderUI retourne .rt-card.project-card complet)
+        shiny::uiOutput(ns("active_project_ui")),
+
+        # Quick actions (card statique)
+        shiny::tags$div(
+          class = "rt-card quick-actions-card",
+          shiny::tags$span(class = "rt-card-title", "Actions rapides"),
+          shiny::tags$div(
+            class = "quick-actions",
+            shiny::actionButton(
+              ns("btn_demo"),
+              shiny::tagList(shiny::icon("flask"), " Charger un projet d\u00e9mo"),
+              class = "btn btn-secondary"
+            ),
+            shiny::actionButton(
+              ns("btn_new_project"),
+              shiny::tagList(shiny::icon("folder-plus"), " Nouveau projet"),
+              class = "btn btn-secondary"
+            ),
+            shiny::actionButton(
+              ns("btn_docs"),
+              shiny::tagList(shiny::icon("book"), " Documentation"),
+              class = "btn btn-secondary"
+            ),
+            shiny::downloadButton(
+              ns("dl_templates_dash"),
+              shiny::tagList(shiny::icon("download"), " Templates (ZIP)"),
+              class = "btn btn-secondary"
+            )
+          )
         )
       ),
-      # ---- Colonne droite : Dépendances ----
-      shiny::column(5,
-        bslib::card(
-          bslib::card_header(shiny::icon("check-circle"), " État des dépendances"),
-          shiny::actionButton(ns("btn_recheck"),
-            shiny::icon("sync"), " Revérifier",
-            class = "btn btn-outline-secondary btn-sm mb-2"),
-          shiny::uiOutput(ns("dep_status_ui"))
-        ),
-        bslib::card(
-          bslib::card_header(shiny::icon("exclamation-circle"), " Avertissements actifs"),
-          shiny::uiOutput(ns("current_warnings_ui"))
-        )
+
+      # ── Side column ──────────────────────────────────────────────────
+      shiny::tags$aside(
+        class = "dashboard-side",
+        # D\u00e9pendances (renderUI retourne .rt-card.dependencies-card complet)
+        shiny::uiOutput(ns("dep_status_ui")),
+        # Avertissements (renderUI retourne .rt-card.warnings-card complet)
+        shiny::uiOutput(ns("current_warnings_ui"))
       )
     )
   )
@@ -99,41 +126,85 @@ mod_dashboard_server <- function(id, app_state) {
       })
     })
 
-    dep_item <- function(icon_name, label, ok, detail = NULL) {
-      cls <- if (ok) "text-success" else "text-danger"
-      ico <- if (ok) "check-circle" else "times-circle"
-      shiny::div(class = "d-flex align-items-start gap-2 mb-1",
-        shiny::span(shiny::icon(ico), class = cls),
-        shiny::div(
-          shiny::strong(label),
-          if (!is.null(detail)) shiny::div(class = "text-muted small", detail) else NULL
-        )
-      )
-    }
-
     output$dep_status_ui <- shiny::renderUI({
       dc <- dep_check()
       overall_ok <- identical(dc$status, "OK")
-      shiny::tagList(
-        shiny::div(class = paste0("badge bg-", if (overall_ok) "success" else "danger", " mb-2"),
-          dc$status),
-        dep_item("r-project", "R", TRUE, dc$r_path %||% "?"),
-        dep_item("python", "Python",
-                 !is.null(dc$python_path) && !grepl("non trouvé|not found", dc$python_path %||% "", ignore.case = TRUE),
-                 dc$python_path %||% "non trouvé"),
-        dep_item("tools", "pyGenomeTracks",
-                 !is.null(dc$pygenometracks_path) && !grepl("non trouvé|not found", dc$pygenometracks_path %||% "", ignore.case = TRUE),
-                 if (!is.null(dc$pygenometracks_version)) paste0("v", dc$pygenometracks_version) else "non trouvé"),
-        dep_item("cubes", "rGenomeTracks",
-                 isTRUE(dc$rGenomeTracks),
-                 if (isTRUE(dc$rGenomeTracks)) "package R disponible" else "manquant"),
-        dep_item("cut", "BEDTools",
-                 isTRUE(dc$bedtools),
-                 if (isTRUE(dc$bedtools)) "disponible" else "non trouvé"),
-        dep_item("terminal", "Conda env",
-                 !is.null(dc$conda_active) && dc$conda_active != "base",
-                 dc$conda_active %||% "inconnu")
+
+      make_dep_row <- function(label, ok, detail = NULL) {
+        icon_name <- if (isTRUE(ok)) "check-circle" else "times-circle"
+        icon_color <- if (isTRUE(ok)) "var(--rt-success)" else "var(--rt-danger)"
+        shiny::tags$div(
+          class = "dep-row",
+          shiny::tags$span(
+            style = paste0("color:", icon_color, ";"),
+            shiny::icon(icon_name)
+          ),
+          shiny::tags$div(
+            class = "dep-main",
+            shiny::tags$div(class = "dep-label", label),
+            if (!is.null(detail))
+              shiny::tags$div(class = "dep-value", detail)
+          )
+        )
+      }
+
+      shiny::tags$div(
+        class = "rt-card dependencies-card",
+        shiny::tags$div(
+          class = "dep-card-header",
+          shiny::tags$div(
+            class = "dep-card-title-row",
+            shiny::tags$span(class = "rt-card-title", "D\u00e9pendances"),
+            status_badge(if (overall_ok) "ok" else "error", label = dc$status)
+          ),
+          shiny::actionButton(
+            session$ns("btn_recheck"),
+            shiny::tagList(shiny::icon("sync"), " Refresh"),
+            class = "btn btn-secondary btn-sm"
+          )
+        ),
+        make_dep_row("R", TRUE, dc$r_path %||% "?"),
+        make_dep_row("Python",
+          !is.null(dc$python_path) && !grepl("non trouv\u00e9|not found",
+            dc$python_path %||% "", ignore.case = TRUE),
+          dc$python_path %||% "non trouv\u00e9"),
+        make_dep_row("pyGenomeTracks",
+          !is.null(dc$pygenometracks_path) && !grepl("non trouv\u00e9|not found",
+            dc$pygenometracks_path %||% "", ignore.case = TRUE),
+          if (!is.null(dc$pygenometracks_version))
+            paste0("v", dc$pygenometracks_version) else "non trouv\u00e9"),
+        make_dep_row("rGenomeTracks",
+          isTRUE(dc$rGenomeTracks),
+          if (isTRUE(dc$rGenomeTracks)) "disponible" else "manquant"),
+        make_dep_row("BEDTools",
+          isTRUE(dc$bedtools),
+          if (isTRUE(dc$bedtools)) "disponible" else "non trouv\u00e9"),
+        make_dep_row("Conda env",
+          !is.null(dc$conda_active) && dc$conda_active != "base",
+          dc$conda_active %||% "inconnu")
       )
+    })
+
+    # ---- Stat cards ----
+    output$stat_inputs <- shiny::renderUI({
+      n <- if (!is.null(app_state$registry)) nrow(app_state$registry) else 0
+      info_card("Input files", n,
+                subtitle = if (n == 0) "No files yet" else "registered",
+                icon_name = "file-alt", color = "blue")
+    })
+
+    output$stat_tracks <- shiny::renderUI({
+      n <- length(app_state$tracks)
+      info_card("Tracks", n,
+                subtitle = if (n == 0) "No tracks yet" else "configured",
+                icon_name = "layer-group", color = "violet")
+    })
+
+    output$stat_regions <- shiny::renderUI({
+      n <- length(app_state$regions %||% character(0))
+      info_card("Regions", n,
+                subtitle = if (n == 0) "No regions yet" else "defined",
+                icon_name = "map-marker-alt", color = "accent")
     })
 
     # ---- Workflow steps ----
@@ -144,35 +215,33 @@ mod_dashboard_server <- function(id, app_state) {
       regions <- app_state$regions %||% character(0)
       fs      <- app_state$figure_settings %||% list()
 
-      steps <- list(
-        list(done = !is.null(proj),          label = "Créer / ouvrir un projet",         nav = "project"),
-        list(done = !is.null(reg) && nrow(reg %||% data.frame()) > 0, label = "Importer des fichiers de données", nav = "inputs"),
-        list(done = length(tracks) > 0,      label = "Configurer les tracks",             nav = "track_builder"),
-        list(done = length(regions) > 0,     label = "Définir les régions",               nav = "regions"),
-        list(done = !is.null(fs$renderer),   label = "Vérifier l'aperçu de config",       nav = "preview"),
-        list(done = !is.null(app_state$last_run_path), label = "Lancer et voir les résultats", nav = "run")
+      step_names  <- c("Project", "Inputs", "Tracks", "Regions", "Preview", "Run")
+      nav_targets <- c("project", "inputs", "track_builder", "regions", "preview", "run")
+
+      step_done <- c(
+        !is.null(proj),
+        !is.null(reg) && nrow(reg %||% data.frame()) > 0,
+        length(tracks) > 0,
+        length(regions) > 0,
+        !is.null(fs$renderer),
+        !is.null(app_state$last_run_path)
+      )
+      first_todo <- which(!step_done)
+      active_idx <- if (length(first_todo) > 0) first_todo[1] else length(step_names) + 1
+
+      step_states <- setNames(
+        lapply(seq_along(step_names), function(i) {
+          if (step_done[i]) "done" else if (i == active_idx) "active" else ""
+        }),
+        step_names
       )
 
-      # Trouver la première étape non faite
-      first_todo <- which(!vapply(steps, function(s) isTRUE(s$done), logical(1)))
-      active_idx <- if (length(first_todo) > 0) first_todo[1] else length(steps) + 1
-
-      items <- lapply(seq_along(steps), function(i) {
-        s <- steps[[i]]
-        status_cls <- if (isTRUE(s$done)) "done" else if (i == active_idx) "active" else "todo"
-        ico <- if (isTRUE(s$done)) shiny::icon("check-circle", class = "text-success")
-               else if (i == active_idx) shiny::icon("arrow-right", class = "text-primary")
-               else shiny::icon("circle", class = "text-muted")
-        lnk <- shiny::actionLink(session$ns(paste0("wf_step_", i)), s$label,
-                                  class = if (i == active_idx) "fw-bold" else "")
-        shiny::div(class = paste("workflow-step-dash", status_cls),
-          shiny::div(class = "step-num-dash", sprintf("%d.", i)),
-          ico,
-          lnk
-        )
-      })
-
-      shiny::tagList(items)
+      workflow_stepper(
+        steps    = step_names,
+        current  = active_idx,
+        states   = step_states,
+        nav_ids  = paste0("wf_step_", seq_along(step_names))
+      )
     })
 
     # Navigation depuis les liens du workflow
@@ -205,35 +274,92 @@ mod_dashboard_server <- function(id, app_state) {
         if (!is.null(dc$conda_active) && dc$conda_active == "base")
           warns <- c(warns, "Environnement conda 'base' actif — préférez 'rgenometrackui'.")
       }
-      if (length(warns) == 0) {
-        shiny::div(class = "text-success small", shiny::icon("check"), " Aucun avertissement.")
+      body_content <- if (length(warns) == 0) {
+        shiny::tags$p(
+          class = "rt-card-muted",
+          style = "margin:0.5rem 0 0;",
+          shiny::icon("check-circle"),
+          " No active warnings."
+        )
       } else {
-        shiny::div(class = "alert alert-warning p-2",
-          shiny::tags$ul(class = "mb-0 ps-3",
-            lapply(warns, function(w) shiny::tags$li(class = "small", w)))
+        shiny::tags$ul(
+          class = "warning-list",
+          lapply(warns, function(w) shiny::tags$li(w))
         )
       }
+      shiny::tags$div(
+        class = "rt-card warnings-card",
+        shiny::tags$span(class = "rt-card-title", "Avertissements"),
+        body_content
+      )
     })
 
     # ---- Projet actif ----
     output$active_project_ui <- shiny::renderUI({
       proj <- app_state$project_config
-      if (is.null(proj)) {
-        shiny::div(class = "text-muted",
-          shiny::icon("info-circle"),
-          " Aucun projet actif. Créez ou ouvrez un projet.")
+      body_content <- if (is.null(proj)) {
+        empty_state(
+          "Aucun projet actif",
+          "Créez un nouveau projet ou ouvrez un projet existant pour commencer.",
+          shiny::actionButton(
+            session$ns("btn_new_project"),
+            shiny::tagList(shiny::icon("folder-plus"), " Créer un projet"),
+            class = "btn btn-primary"
+          ),
+          icon_name = "folder-open"
+        )
       } else {
-        shiny::tags$dl(class = "row mb-0",
-          shiny::tags$dt(class = "col-4", "Nom"),
-          shiny::tags$dd(class = "col-8", proj$project_name %||% "?"),
-          shiny::tags$dt(class = "col-4", "Génome"),
-          shiny::tags$dd(class = "col-8", proj$genome_label %||% "?"),
-          shiny::tags$dt(class = "col-4", "Description"),
-          shiny::tags$dd(class = "col-8", proj$description %||% "—"),
-          shiny::tags$dt(class = "col-4", "Chemin"),
-          shiny::tags$dd(class = "col-8", shiny::code(proj$project_path %||% "?"))
+        shiny::tags$div(
+          class = "flex-row gap-12 flex-wrap",
+          shiny::tags$div(
+            style = "flex:1;min-width:200px;",
+            shiny::tags$div(
+              style = "display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:baseline;",
+              shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Nom"),
+              shiny::tags$span(style = "font-weight:600;", proj$project_name %||% "?"),
+              shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Génome"),
+              shiny::tags$span(
+                status_badge("accent", label = proj$genome_label %||% "?", show_dot = FALSE)
+              ),
+              shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Description"),
+              shiny::tags$span(style = "color:var(--rt-muted);", proj$description %||% "—")
+            )
+          ),
+          shiny::tags$div(
+            style = "flex:1;min-width:200px;",
+            shiny::tags$div(
+              style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;margin-bottom:4px;",
+              "Chemin"
+            ),
+            path_block(proj$project_path %||% "?")
+          )
         )
       }
+      shiny::tags$div(
+        class = "rt-card project-card",
+        shiny::tags$div(
+          class = "dep-card-header",
+          shiny::tags$div(
+            class = "dep-card-title-row",
+            shiny::tags$span(class = "rt-card-title", "Projet actif")
+          ),
+          if (!is.null(proj))
+            shiny::tags$div(
+              class = "d-flex gap-2",
+              shiny::actionButton(
+                session$ns("btn_open_project"),
+                shiny::tagList(shiny::icon("folder-open"), " Ouvrir"),
+                class = "btn btn-secondary btn-sm"
+              ),
+              shiny::actionButton(
+                session$ns("btn_history"),
+                shiny::tagList(shiny::icon("history"), " Historique"),
+                class = "btn btn-secondary btn-sm"
+              )
+            )
+        ),
+        body_content
+      )
     })
 
     # ---- Boutons de navigation ----

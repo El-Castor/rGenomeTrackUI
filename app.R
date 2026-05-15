@@ -88,16 +88,62 @@ ensure_dir("logs")
 # =============================================================================
 # UI
 # =============================================================================
+
+# Serve www/ under /assets/ with an explicit path so Shiny can't shadow it
+shiny::addResourcePath(
+  "assets",
+  normalizePath(file.path(getwd(), "www"), mustWork = TRUE)
+)
+
+# Helper to add icon to nav tab title
+.nav_title <- function(icon_name, label) {
+  shiny::tagList(shiny::tags$i(class = paste0("fa fa-", icon_name),
+                               `aria-hidden` = "true"),
+                 shiny::tags$span(label))
+}
+
 ui <- bslib::page_navbar(
-  title    = "rGenomeTrackUI",
-  id       = "main_nav",
-  theme    = bslib::bs_theme(bootswatch = "flatly", version = 5),
+  title = shiny::tagList(
+    shiny::tags$span(
+      style = paste0(
+        "display:inline-flex;align-items:center;gap:8px;",
+        "font-weight:700;font-size:17px;letter-spacing:-0.3px;color:#fff;"
+      ),
+      shiny::tags$span(
+        style = paste0(
+          "width:26px;height:26px;background:var(--rt-accent,#20c7a8);",
+          "border-radius:6px;display:inline-flex;align-items:center;",
+          "justify-content:center;font-size:12px;font-weight:800;color:#102a43;"
+        ),
+        "RT"
+      ),
+      "rGenomeTrackUI"
+    )
+  ),
+  id          = "main_nav",
+  theme       = bslib::bs_theme(
+    bootswatch  = "flatly",
+    version     = 5,
+    base_font   = bslib::font_google("Inter", wght = c(300, 400, 500, 600, 700)),
+    "navbar-bg" = "#102a43"
+  ),
   collapsible = TRUE,
-  header   = shinyjs::useShinyjs(),
+  header = shiny::tagList(
+    shinyjs::useShinyjs(),
+    shiny::tags$head(
+      shiny::tags$link(
+        rel  = "stylesheet",
+        type = "text/css",
+        href = "assets/styles.css?v=ui-polish-v03"
+      ),
+      shiny::tags$script(src = "assets/app.js")
+    )
+  ),
+  bg = "#102a43",
 
   # ------ Dashboard ---------------------------------------------------------
   bslib::nav_panel(
-    "Dashboard",
+    title = .nav_title("home", "Dashboard"),
     value = "dashboard",
     shiny::div(class = "container-fluid mt-3",
       mod_dashboard_ui("dashboard")
@@ -106,7 +152,7 @@ ui <- bslib::page_navbar(
 
   # ------ Projects ----------------------------------------------------------
   bslib::nav_panel(
-    "Projets",
+    title = .nav_title("folder-open", "Projets"),
     value = "project",
     shiny::div(class = "container-fluid mt-3",
       mod_project_ui("project")
@@ -115,7 +161,7 @@ ui <- bslib::page_navbar(
 
   # ------ Inputs ------------------------------------------------------------
   bslib::nav_panel(
-    "Inputs",
+    title = .nav_title("file-alt", "Inputs"),
     value = "inputs",
     shiny::div(class = "container-fluid mt-3",
       mod_inputs_ui("inputs")
@@ -124,7 +170,7 @@ ui <- bslib::page_navbar(
 
   # ------ Track Builder -----------------------------------------------------
   bslib::nav_panel(
-    "Track Builder",
+    title = .nav_title("layer-group", "Tracks"),
     value = "tracks",
     shiny::div(class = "container-fluid mt-3",
       mod_track_builder_ui("tracks")
@@ -133,7 +179,7 @@ ui <- bslib::page_navbar(
 
   # ------ Region & Figure ---------------------------------------------------
   bslib::nav_panel(
-    "Régions & Figure",
+    title = .nav_title("map-marker-alt", "Régions"),
     value = "regions",
     shiny::div(class = "container-fluid mt-3",
       mod_region_settings_ui("regions")
@@ -142,7 +188,7 @@ ui <- bslib::page_navbar(
 
   # ------ Preview -----------------------------------------------------------
   bslib::nav_panel(
-    "Aperçu config",
+    title = .nav_title("eye", "Aperçu"),
     value = "preview",
     shiny::div(class = "container-fluid mt-3",
       mod_preview_ui("preview")
@@ -151,7 +197,7 @@ ui <- bslib::page_navbar(
 
   # ------ Run ---------------------------------------------------------------
   bslib::nav_panel(
-    "Run",
+    title = .nav_title("play-circle", "Run"),
     value = "run",
     shiny::div(class = "container-fluid mt-3",
       mod_run_ui("run")
@@ -160,7 +206,7 @@ ui <- bslib::page_navbar(
 
   # ------ Results -----------------------------------------------------------
   bslib::nav_panel(
-    "Résultats",
+    title = .nav_title("chart-bar", "Résultats"),
     value = "results",
     shiny::div(class = "container-fluid mt-3",
       mod_results_ui("results")
@@ -169,23 +215,28 @@ ui <- bslib::page_navbar(
 
   # ------ History -----------------------------------------------------------
   bslib::nav_panel(
-    "Historique",
+    title = .nav_title("history", "Historique"),
     value = "history",
     shiny::div(class = "container-fluid mt-3",
       mod_history_ui("history")
     )
   ),
 
+  # Spacer before secondary links
+  bslib::nav_spacer(),
+
   # ------ Settings ----------------------------------------------------------
   bslib::nav_panel(
-    "Paramètres",
+    title = .nav_title("cog", "Paramètres"),
     value = "settings",
     shiny::div(class = "container-fluid mt-3",
       mod_settings_ui("settings")
     )
   ),
+
+  # ------ Documentation -----------------------------------------------------
   bslib::nav_panel(
-    title = shiny::tagList(shiny::icon("book"), "Documentation"),
+    title = .nav_title("book", "Docs"),
     value = "documentation",
     shiny::div(class = "container-fluid mt-3",
       mod_documentation_ui("docs")

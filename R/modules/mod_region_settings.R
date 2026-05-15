@@ -9,59 +9,83 @@
 mod_region_settings_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Régions & Paramètres de figure"),
+
+    omics_banner(
+      "Régions & Paramètres de figure",
+      "Définissez les loci génomiques à visualiser et les options de rendu.",
+      small = TRUE
+    ),
+
     shiny::fluidRow(
       shiny::column(6,
-        bslib::card(
-          bslib::card_header(shiny::icon("map-marker-alt"), " Régions génomiques"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("map-marker-alt")),
+            shiny::tags$h5("Régions génomiques")
+          ),
           bslib::navset_tab(
-            bslib::nav_panel("Région unique",
-              shiny::div(class = "mt-2"),
-              shiny::div(class = "alert alert-info p-2 mb-2",
-                shiny::icon("info-circle"),
-                shiny::HTML(" Format : <code>chr:start-end</code> &nbsp;&nbsp; Ex : <code>chr1:1000000-1250000</code>")
-              ),
-              shiny::textInput(ns("region_single"), "Région", placeholder = "chr1:1000000-1250000"),
-              shiny::div(class = "d-flex gap-2 flex-wrap mb-1",
-                shiny::tags$small("Exemples rapides :"),
-                shiny::actionLink(ns("ex_reg1"), "chr1:1000-20000", class = "me-1"),
-                shiny::actionLink(ns("ex_reg2"), "chrX:100000-500000", class = "me-1"),
-                shiny::actionLink(ns("ex_reg3"), "chr21:34600000-34700000")
-              ),
-              shiny::uiOutput(ns("region_validate_ui")),
-              shiny::actionButton(ns("btn_add_region"),
-                shiny::icon("plus"), " Ajouter la région",
-                class = "btn btn-primary btn-sm mt-1")
+            bslib::nav_panel(
+              shiny::tagList(shiny::icon("crosshairs"), " Région unique"),
+              shiny::div(class = "mt-2",
+                shiny::div(class = "alert alert-info p-2 mb-2",
+                  shiny::icon("info-circle"),
+                  shiny::HTML(" Format : <code>chr:start-end</code> &nbsp; Ex : <code>chr1:1000000-1250000</code>")
+                ),
+                shiny::textInput(ns("region_single"), "Région", placeholder = "chr1:1000000-1250000"),
+                shiny::div(class = "d-flex gap-2 flex-wrap mb-1",
+                  shiny::tags$small(class = "text-muted", "Exemples rapides :"),
+                  shiny::actionLink(ns("ex_reg1"), "chr1:1000-20000"),
+                  shiny::actionLink(ns("ex_reg2"), "chrX:100000-500000"),
+                  shiny::actionLink(ns("ex_reg3"), "chr21:34600000-34700000")
+                ),
+                shiny::uiOutput(ns("region_validate_ui")),
+                shiny::actionButton(ns("btn_add_region"),
+                  shiny::tagList(shiny::icon("plus"), " Ajouter la région"),
+                  class = "btn btn-primary btn-sm mt-1")
+              )
             ),
-            bslib::nav_panel("Fichier BED multi-régions",
-              shiny::div(class = "mt-2"),
-              shiny::div(class = "alert alert-info p-2 mb-2",
-                shiny::icon("info-circle"),
-                shiny::HTML(" Un fichier BED 3+ colonnes. Chaque ligne génère une figure séparée.")
-              ),
-              shiny::fileInput(ns("regions_bed"), "Fichier BED de régions (.bed)"),
-              shiny::div(class = "d-flex gap-2",
-                shiny::actionButton(ns("btn_load_bed"),
-                  shiny::icon("upload"), " Charger",
-                  class = "btn btn-primary btn-sm"),
-                shiny::downloadButton(ns("dl_regions_template"), "Template BED",
-                  class = "btn btn-outline-secondary btn-sm")
+            bslib::nav_panel(
+              shiny::tagList(shiny::icon("file-alt"), " Fichier BED"),
+              shiny::div(class = "mt-2",
+                shiny::div(class = "alert alert-info p-2 mb-2",
+                  shiny::icon("info-circle"),
+                  shiny::HTML(" Un fichier BED 3+ colonnes. Chaque ligne génère une figure séparée.")
+                ),
+                shiny::fileInput(ns("regions_bed"), "Fichier BED de régions (.bed)"),
+                shiny::div(class = "d-flex gap-2",
+                  shiny::actionButton(ns("btn_load_bed"),
+                    shiny::tagList(shiny::icon("upload"), " Charger"),
+                    class = "btn btn-primary btn-sm"),
+                  shiny::downloadButton(ns("dl_regions_template"),
+                    shiny::tagList(shiny::icon("download"), " Template BED"),
+                    class = "btn btn-secondary btn-sm")
+                )
               )
             )
           ),
-          shiny::hr(),
-          shiny::div(class = "d-flex justify-content-between align-items-center mb-1",
-            shiny::h6(shiny::icon("list"), " Régions sélectionnées"),
+          shiny::tags$hr(class = "divider"),
+          shiny::tags$div(
+            class = "flex-between mb-2",
+            shiny::tags$h6(class = "mb-0",
+              shiny::tagList(shiny::icon("list"), " Régions sélectionnées")
+            ),
             shiny::actionButton(ns("btn_clear_regions"),
-              shiny::icon("times"), " Tout effacer",
-              class = "btn btn-sm btn-outline-danger")
+              shiny::tagList(shiny::icon("times"), " Effacer"),
+              class = "btn btn-danger btn-sm")
           ),
           shiny::uiOutput(ns("regions_list_ui"))
         )
       ),
       shiny::column(6,
-        bslib::card(
-          bslib::card_header(shiny::icon("image"), " Paramètres de figure"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("image")),
+            shiny::tags$h5("Paramètres de figure")
+          ),
           shiny::selectInput(ns("output_format"), "Format de sortie",
                              choices = c("PNG" = "png", "PDF" = "pdf", "SVG" = "svg"),
                              selected = "png"),
@@ -97,8 +121,8 @@ mod_region_settings_ui <- function(id) {
           ),
           shiny::textInput(ns("output_basename"), "Préfixe de sortie", value = "figure"),
           shiny::actionButton(ns("btn_save_settings"),
-            shiny::icon("save"), " Enregistrer les paramètres",
-            class = "btn btn-success w-100")
+            shiny::tagList(shiny::icon("save"), " Enregistrer les paramètres"),
+            class = "btn btn-primary w-100")
         )
       )
     )

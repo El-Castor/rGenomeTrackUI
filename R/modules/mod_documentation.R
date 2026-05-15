@@ -5,383 +5,373 @@
 mod_documentation_ui <- function(id) {
   ns <- shiny::NS(id)
 
-  bslib::page_fluid(
-    shinyjs::useShinyjs(),
-    shiny::tags$head(
-      shiny::tags$style(shiny::HTML("
-        .doc-section { padding: 0.5rem 0 1rem 0; }
-        .doc-section h4 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.3rem; }
-        .workflow-step { display: flex; align-items: flex-start; gap: 1rem;
-                         background: #f8f9fa; border-radius: 8px; padding: 1rem;
-                         margin-bottom: 0.75rem; border-left: 4px solid #3498db; }
-        .step-num { font-size: 1.5rem; font-weight: bold; color: #3498db;
-                    min-width: 2rem; text-align: center; }
-        .format-table td, .format-table th { vertical-align: middle; font-size: 0.9em; }
-        .tip-box { background: #e8f4f8; border-left: 4px solid #17a2b8;
-                   padding: 0.75rem 1rem; border-radius: 0 4px 4px 0; margin: 0.5rem 0; }
-        .warn-box { background: #fff3cd; border-left: 4px solid #ffc107;
-                    padding: 0.75rem 1rem; border-radius: 0 4px 4px 0; margin: 0.5rem 0; }
-        .code-inline { font-family: monospace; background: #f0f0f0;
-                        padding: 0.1em 0.4em; border-radius: 3px; }
-        .faq-q { font-weight: bold; color: #2c3e50; }
-        .faq-a { color: #555; margin-bottom: 1rem; }
-        .use-case-card { border: 1px solid #dee2e6; border-radius: 8px;
-                         padding: 1rem; margin-bottom: 1rem; }
-        .use-case-card .case-title { font-weight: bold; color: #495057;
-                                      font-size: 1.05rem; margin-bottom: 0.5rem; }
-      "))
-    ),
+  shiny::tagList(
 
-    shiny::fluidRow(
-      shiny::column(12,
-        shiny::h2(shiny::icon("book-open"), " Documentation rGenomeTrackUI",
-                  class = "mt-3 mb-1"),
-        shiny::p(shiny::HTML(
-          "Guide complet pour utiliser <strong>rGenomeTrackUI</strong>, l'interface graphique pour
-          <a href='https://pygenometracks.readthedocs.io' target='_blank'>pyGenomeTracks</a>."
-        ), class = "lead text-muted mb-4")
-      )
+    omics_banner(
+      "Documentation",
+      "Guide complet d'utilisation de rGenomeTrackUI et pyGenomeTracks.",
+      small = TRUE
     ),
 
     # Tabs principales
     bslib::navset_tab(
       id = ns("doc_tabs"),
 
-      # -------------------------------------------------------------------------
+      # -----------------------------------------------------------------------
       # Onglet 1 : Présentation
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("Présentation",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("info-circle"), " Qu'est-ce que rGenomeTrackUI ?"),
-          shiny::p(shiny::HTML(
-            "<strong>rGenomeTrackUI</strong> est une interface Shiny permettant de configurer et
-            lancer <strong>pyGenomeTracks</strong> — un outil Python de référence pour la
-            visualisation de données génomiques multi-niveaux — sans avoir à écrire de code."
-          )),
-          shiny::hr(),
-
-          shiny::h4(shiny::icon("layer-group"), " Architecture générale"),
-          bslib::layout_columns(
-            col_widths = c(6, 6),
-            bslib::card(
-              bslib::card_header("Ce que fait rGenomeTrackUI"),
-              shiny::tags$ul(
-                shiny::tags$li("Gestion de projets multi-analyses"),
-                shiny::tags$li("Registre d'importation de fichiers génomiques"),
-                shiny::tags$li("Configuration visuelle des tracks (pistes)"),
-                shiny::tags$li("Génération automatique du fichier ", shiny::code("tracks.ini")),
-                shiny::tags$li("Génération de scripts R et Shell reproductibles"),
-                shiny::tags$li("Lancement de pyGenomeTracks et affichage des résultats")
-              )
-            ),
-            bslib::card(
-              bslib::card_header("Ce que fait pyGenomeTracks"),
-              shiny::tags$ul(
-                shiny::tags$li("Rendu des figures PNG/PDF/SVG haute résolution"),
-                shiny::tags$li("Support : BigWig, BedGraph, GTF, BED, narrowPeak, Links…"),
-                shiny::tags$li("Superposition de plusieurs régions"),
-                shiny::tags$li("Personnalisation fine des couleurs et styles"),
-                shiny::tags$li("Interface en ligne de commande reproductible")
-              )
-            )
-          ),
-          shiny::hr(),
-
-          shiny::h4(shiny::icon("check-circle"), " Prérequis"),
-          shiny::div(class = "tip-box",
-            shiny::tags$ul(
-              shiny::tags$li("Environnement conda ", shiny::code("rgenometrackui"), " activé"),
-              shiny::tags$li("pyGenomeTracks installé dans l'environnement conda"),
-              shiny::tags$li("R ≥ 4.0 avec les packages Shiny, bslib, DT, etc.")
-            )
-          ),
-          shiny::div(class = "warn-box",
-            shiny::icon("exclamation-triangle"), " Sur macOS, l'app doit être lancée via ",
-            shiny::code("bash scripts/run_app.sh"), " pour que les dépendances conda soient trouvées."
-          )
-        )
-      ),
-
-      # -------------------------------------------------------------------------
-      # Onglet 2 : Workflow
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("Workflow",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("route"), " Étapes du workflow"),
-          shiny::p("Suivez ces étapes dans l'ordre pour produire vos premières figures :"),
-
-          shiny::div(class = "workflow-step",
-            shiny::div(class = "step-num", "1"),
-            shiny::div(
-              shiny::strong("Dashboard — Vérifier les dépendances"),
-              shiny::p("Depuis l'onglet Dashboard, vérifiez que tous les statuts sont verts.
-                 Si pyGenomeTracks ou BEDTools sont manquants, corrigez l'environnement conda
-                 avant de continuer.")
-            )
-          ),
-          shiny::div(class = "workflow-step",
-            shiny::div(class = "step-num", "2"),
-            shiny::div(
-              shiny::strong("Projets — Créer ou ouvrir un projet"),
-              shiny::p("Un projet = un dossier sur disque contenant les fichiers de données, la config,
-                 et les résultats. Créez un nouveau projet ou ouvrez-en un existant.")
-            )
-          ),
-          shiny::div(class = "workflow-step",
-            shiny::div(class = "step-num", "3"),
-            shiny::div(
-              shiny::strong("Inputs — Importer vos fichiers de données"),
-              shiny::p("Uploadez ou référencez vos fichiers (BigWig, BED, GTF…).
-                 Consultez l'onglet 'Formats & templates' pour vérifier le format attendu
-                 et télécharger un template si besoin.")
-            )
-          ),
-          shiny::div(class = "workflow-step",
-            shiny::div(class = "step-num", "4"),
-            shiny::div(
-              shiny::strong("Track Builder — Configurer les pistes"),
-              shiny::p("Ajoutez des tracks, sélectionnez leurs fichiers de données, et ajustez
-                 les paramètres visuels (couleur, hauteur, type d'affichage…).")
-            )
-          ),
-          shiny::div(class = "workflow-step",
-            shiny::div(class = "step-num", "5"),
-            shiny::div(
-              shiny::strong("Régions & Figure — Définir la région à visualiser"),
-              shiny::p("Saisissez une région au format ", shiny::code("chr:start-end"),
-                " ou uploadez un fichier BED multi-régions. Ajustez la taille et le titre de la figure.")
-            )
-          ),
-          shiny::div(class = "workflow-step",
-            shiny::div(class = "step-num", "6"),
-            shiny::div(
-              shiny::strong("Aperçu config → Run — Vérifier et lancer"),
-              shiny::p("Consultez l'aperçu de la configuration générée, puis lancez pyGenomeTracks
-                 depuis l'onglet Run. Les figures apparaissent dans l'onglet Résultats.")
-            )
-          )
-        )
-      ),
-
-      # -------------------------------------------------------------------------
-      # Onglet 3 : Formats de fichiers
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("Formats",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("file-alt"), " Formats de fichiers supportés"),
-          bslib::layout_columns(
-            col_widths = c(4, 8),
-            shiny::div(
-              shiny::selectInput(
-                ns("format_selector"),
-                "Sélectionner un format :",
-                choices = c(
-                  "BED (annotations)" = "bed",
-                  "BedGraph (signal texte)" = "bedgraph",
-                  "BigWig (signal binaire)" = "bigwig",
-                  "GTF/GFF (gènes)" = "gtf",
-                  "narrowPeak (pics ChIP)" = "narrowpeak",
-                  "BEDPE / Links" = "bedpe",
-                  "Domains (TADs)" = "domains",
-                  "Regions BED" = "regions",
-                  "Lignes verticales" = "vlines",
-                  "Lignes horizontales" = "hlines"
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("info-circle"), " Présentation"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(
+            class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("question-circle"), " Qu'est-ce que rGenomeTrackUI ?"),
+            shiny::p(shiny::HTML(
+              "<strong>rGenomeTrackUI</strong> est une interface Shiny permettant de configurer et
+              lancer <strong>pyGenomeTracks</strong> \u2014 un outil Python de r\u00e9f\u00e9rence pour la
+              visualisation de donn\u00e9es g\u00e9nomiques multi-niveaux \u2014 sans \u00e9crire de code."
+            )),
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("layer-group"), " Architecture g\u00e9n\u00e9rale"),
+            shiny::fluidRow(
+              shiny::column(6,
+                shiny::tags$div(class = "rt-card",
+                  shiny::tags$div(class = "rt-card-header",
+                    shiny::tags$span(class = "rt-card-icon", shiny::icon("desktop")),
+                    shiny::tags$h5("Ce que fait rGenomeTrackUI")),
+                  shiny::tags$ul(
+                    shiny::tags$li("Gestion de projets multi-analyses"),
+                    shiny::tags$li("Registre d'importation de fichiers g\u00e9nomiques"),
+                    shiny::tags$li("Configuration visuelle des tracks"),
+                    shiny::tags$li("G\u00e9n\u00e9ration automatique de ", shiny::code("tracks.ini")),
+                    shiny::tags$li("G\u00e9n\u00e9ration de scripts R et Shell reproductibles"),
+                    shiny::tags$li("Lancement de pyGenomeTracks et affichage des r\u00e9sultats")
+                  )
                 )
               ),
-              shiny::uiOutput(ns("format_dl_btn"))
+              shiny::column(6,
+                shiny::tags$div(class = "rt-card",
+                  shiny::tags$div(class = "rt-card-header",
+                    shiny::tags$span(class = "rt-card-icon", shiny::icon("python")),
+                    shiny::tags$h5("Ce que fait pyGenomeTracks")),
+                  shiny::tags$ul(
+                    shiny::tags$li("Rendu des figures PNG/PDF/SVG haute r\u00e9solution"),
+                    shiny::tags$li("Support : BigWig, BedGraph, GTF, BED, narrowPeak, Links\u2026"),
+                    shiny::tags$li("Superposition de plusieurs r\u00e9gions"),
+                    shiny::tags$li("Personnalisation fine des couleurs et styles"),
+                    shiny::tags$li("Interface en ligne de commande reproductible")
+                  )
+                )
+              )
             ),
-            shiny::div(
-              shiny::uiOutput(ns("format_help_panel"))
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("check-circle"), " Pr\u00e9requis"),
+            shiny::div(class = "doc-tip-box",
+              shiny::tags$ul(
+                shiny::tags$li("Environnement conda ", shiny::code("rgenometrackui"), " activ\u00e9"),
+                shiny::tags$li("pyGenomeTracks install\u00e9 dans l'environnement conda"),
+                shiny::tags$li("R \u2265 4.0 avec les packages Shiny, bslib, DT, etc.")
+              )
+            ),
+            shiny::div(class = "doc-warn-box",
+              shiny::icon("exclamation-triangle"),
+              " Sur macOS, l'app doit \u00eatre lanc\u00e9e via ",
+              shiny::code("bash scripts/run_app.sh"),
+              " pour que les d\u00e9pendances conda soient trouv\u00e9es."
             )
-          ),
-          shiny::hr(),
-          shiny::h5("Tableau récapitulatif de tous les formats"),
-          DT::DTOutput(ns("formats_overview_table"))
+          )
         )
       ),
 
-      # -------------------------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Onglet 2 : Workflow
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("route"), " Workflow"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(
+            class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("route"), " \u00c9tapes du workflow"),
+            shiny::p("Suivez ces \u00e9tapes dans l'ordre pour produire vos premi\u00e8res figures :"),
+            shiny::div(class = "doc-workflow-step",
+              shiny::div(class = "doc-step-num", "1"),
+              shiny::div(
+                shiny::tags$strong("Dashboard \u2014 V\u00e9rifier les d\u00e9pendances"),
+                shiny::p("Depuis l'onglet Dashboard, v\u00e9rifiez que tous les statuts sont verts.
+                   Si pyGenomeTracks ou BEDTools sont manquants, corrigez l'environnement conda
+                   avant de continuer.")
+              )
+            ),
+            shiny::div(class = "doc-workflow-step",
+              shiny::div(class = "doc-step-num", "2"),
+              shiny::div(
+                shiny::tags$strong("Projets \u2014 Cr\u00e9er ou ouvrir un projet"),
+                shiny::p("Un projet = un dossier sur disque contenant les fichiers de donn\u00e9es, la config,
+                   et les r\u00e9sultats. Cr\u00e9ez un nouveau projet ou ouvrez-en un existant.")
+              )
+            ),
+            shiny::div(class = "doc-workflow-step",
+              shiny::div(class = "doc-step-num", "3"),
+              shiny::div(
+                shiny::tags$strong("Inputs \u2014 Importer vos fichiers de donn\u00e9es"),
+                shiny::p("Uploadez ou r\u00e9f\u00e9rencez vos fichiers (BigWig, BED, GTF\u2026).
+                   Consultez l'onglet 'Formats & templates' pour v\u00e9rifier le format attendu
+                   et t\u00e9l\u00e9charger un template si besoin.")
+              )
+            ),
+            shiny::div(class = "doc-workflow-step",
+              shiny::div(class = "doc-step-num", "4"),
+              shiny::div(
+                shiny::tags$strong("Track Builder \u2014 Configurer les pistes"),
+                shiny::p("Ajoutez des tracks, s\u00e9lectionnez leurs fichiers de donn\u00e9es, et ajustez
+                   les param\u00e8tres visuels (couleur, hauteur, type d'affichage\u2026).")
+              )
+            ),
+            shiny::div(class = "doc-workflow-step",
+              shiny::div(class = "doc-step-num", "5"),
+              shiny::div(
+                shiny::tags$strong("R\u00e9gions & Figure \u2014 D\u00e9finir la r\u00e9gion \u00e0 visualiser"),
+                shiny::p("Saisissez une r\u00e9gion au format ", shiny::code("chr:start-end"),
+                  " ou uploadez un fichier BED multi-r\u00e9gions. Ajustez la taille et le titre de la figure.")
+              )
+            ),
+            shiny::div(class = "doc-workflow-step",
+              shiny::div(class = "doc-step-num", "6"),
+              shiny::div(
+                shiny::tags$strong("Aper\u00e7u config \u2192 Run \u2014 V\u00e9rifier et lancer"),
+                shiny::p("Consultez l'aper\u00e7u de la configuration g\u00e9n\u00e9r\u00e9e, puis lancez pyGenomeTracks
+                   depuis l'onglet Run. Les figures apparaissent dans l'onglet R\u00e9sultats.")
+              )
+            )
+          )
+        )
+      ),
+
+      # -----------------------------------------------------------------------
+      # Onglet 3 : Formats de fichiers
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("file-alt"), " Formats"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("file-alt"), " Formats de fichiers support\u00e9s"),
+            shiny::fluidRow(
+              shiny::column(4,
+                shiny::selectInput(
+                  ns("format_selector"),
+                  "S\u00e9lectionner un format :",
+                  choices = c(
+                    "BED (annotations)"       = "bed",
+                    "BedGraph (signal texte)"  = "bedgraph",
+                    "BigWig (signal binaire)"  = "bigwig",
+                    "GTF/GFF (g\u00e8nes)"          = "gtf",
+                    "narrowPeak (pics ChIP)"   = "narrowpeak",
+                    "BEDPE / Links"            = "bedpe",
+                    "Domains (TADs)"           = "domains",
+                    "Regions BED"              = "regions",
+                    "Lignes verticales"        = "vlines",
+                    "Lignes horizontales"      = "hlines"
+                  )
+                ),
+                shiny::uiOutput(ns("format_dl_btn"))
+              ),
+              shiny::column(8,
+                shiny::uiOutput(ns("format_help_panel"))
+              )
+            ),
+            shiny::tags$hr(class = "divider"),
+            shiny::tags$h6("Tableau r\u00e9capitulatif de tous les formats"),
+            DT::DTOutput(ns("formats_overview_table"))
+          )
+        )
+      ),
+
+      # -----------------------------------------------------------------------
       # Onglet 4 : Cas d'usage
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("Cas d'usage",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("vials"), " Exemples de cas d'usage typiques"),
-
-          shiny::div(class = "use-case-card",
-            shiny::div(class = "case-title", shiny::icon("dna"), " Visualisation d'un locus ChIP-seq"),
-            shiny::p("Superposer plusieurs tracks d'enrichissement H3K27ac avec annotation de gènes."),
-            shiny::tags$ul(
-              shiny::tags$li("1 track GTF (gènes)"),
-              shiny::tags$li("2-4 tracks BigWig (signal H3K27ac)"),
-              shiny::tags$li("1 track narrowPeak (pics appelés)"),
-              shiny::tags$li("Région : locus d'intérêt, typiquement 50kb-500kb")
-            )
-          ),
-
-          shiny::div(class = "use-case-card",
-            shiny::div(class = "case-title", shiny::icon("project-diagram"), " Structure chromatinienne Hi-C"),
-            shiny::p("Visualiser un domaine TAD avec les interactions intra-domaines."),
-            shiny::tags$ul(
-              shiny::tags$li("1 track Domains (TAD boundaries)"),
-              shiny::tags$li("1 track Links (BEDPE interactions)"),
-              shiny::tags$li("1 track BigWig (coverage CTCF ou cohesin)"),
-              shiny::tags$li("Région : 1-5 Mb autour du locus")
-            )
-          ),
-
-          shiny::div(class = "use-case-card",
-            shiny::div(class = "case-title", shiny::icon("chart-area"), " Profil d'expression RNA-seq"),
-            shiny::p("Afficher la couverture RNA-seq sur un gène ou une région."),
-            shiny::tags$ul(
-              shiny::tags$li("1-2 tracks BigWig (coverage RNA-seq sens/antisens)"),
-              shiny::tags$li("1 track GTF (annotation gènes)"),
-              shiny::tags$li("Lignes verticales : marqueurs d'exons d'intérêt"),
-              shiny::tags$li("Région : gène ± 5 kb")
-            )
-          ),
-
-          shiny::div(class = "use-case-card",
-            shiny::div(class = "case-title", shiny::icon("map-marked"), " Multi-régions comparatives"),
-            shiny::p("Produire automatiquement une figure par région dans un fichier BED."),
-            shiny::tags$ul(
-              shiny::tags$li("Fichier BED multi-lignes dans 'Régions & Figure'"),
-              shiny::tags$li("Même configuration de tracks pour toutes les régions"),
-              shiny::tags$li("Utile pour comparer des promoteurs ou des enhancers")
-            )
-          ),
-
-          shiny::div(class = "use-case-card",
-            shiny::div(class = "case-title", shiny::icon("crosshairs"), " Variants/mutations ponctuelles"),
-            shiny::p("Mettre en évidence des positions précises (SNPs, indels, breakpoints)"),
-            shiny::tags$ul(
-              shiny::tags$li("Tracks BigWig ou BedGraph (signal dans la région)"),
-              shiny::tags$li("Track GTF (gène affecté)"),
-              shiny::tags$li("Lignes verticales : position exacte du ou des variants")
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("vials"), " Cas d'usage"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("vials"), " Exemples de cas d'usage typiques"),
+            shiny::div(class = "doc-use-case",
+              shiny::div(class = "doc-use-case-title", shiny::icon("dna"), " Visualisation d'un locus ChIP-seq"),
+              shiny::p("Superposer plusieurs tracks d'enrichissement H3K27ac avec annotation de g\u00e8nes."),
+              shiny::tags$ul(
+                shiny::tags$li("1 track GTF (g\u00e8nes)"),
+                shiny::tags$li("2\u20134 tracks BigWig (signal H3K27ac)"),
+                shiny::tags$li("1 track narrowPeak (pics appel\u00e9s)"),
+                shiny::tags$li("R\u00e9gion : locus d'int\u00e9r\u00eat, typiquement 50 kb\u2013500 kb")
+              )
+            ),
+            shiny::div(class = "doc-use-case",
+              shiny::div(class = "doc-use-case-title", shiny::icon("project-diagram"), " Structure chromatinienne Hi-C"),
+              shiny::p("Visualiser un domaine TAD avec les interactions intra-domaines."),
+              shiny::tags$ul(
+                shiny::tags$li("1 track Domains (TAD boundaries)"),
+                shiny::tags$li("1 track Links (BEDPE interactions)"),
+                shiny::tags$li("1 track BigWig (coverage CTCF ou cohesin)"),
+                shiny::tags$li("R\u00e9gion : 1\u20135 Mb autour du locus")
+              )
+            ),
+            shiny::div(class = "doc-use-case",
+              shiny::div(class = "doc-use-case-title", shiny::icon("chart-area"), " Profil d'expression RNA-seq"),
+              shiny::p("Afficher la couverture RNA-seq sur un g\u00e8ne ou une r\u00e9gion."),
+              shiny::tags$ul(
+                shiny::tags$li("1\u20132 tracks BigWig (coverage RNA-seq sens/antisens)"),
+                shiny::tags$li("1 track GTF (annotation g\u00e8nes)"),
+                shiny::tags$li("Lignes verticales : marqueurs d'exons d'int\u00e9r\u00eat"),
+                shiny::tags$li("R\u00e9gion : g\u00e8ne \u00b1 5 kb")
+              )
+            ),
+            shiny::div(class = "doc-use-case",
+              shiny::div(class = "doc-use-case-title", shiny::icon("map-marked"), " Multi-r\u00e9gions comparatives"),
+              shiny::p("Produire automatiquement une figure par r\u00e9gion dans un fichier BED."),
+              shiny::tags$ul(
+                shiny::tags$li("Fichier BED multi-lignes dans 'R\u00e9gions & Figure'"),
+                shiny::tags$li("M\u00eame configuration de tracks pour toutes les r\u00e9gions"),
+                shiny::tags$li("Utile pour comparer des promoteurs ou des enhancers")
+              )
+            ),
+            shiny::div(class = "doc-use-case",
+              shiny::div(class = "doc-use-case-title", shiny::icon("crosshairs"), " Variants/mutations ponctuelles"),
+              shiny::p("Mettre en \u00e9vidence des positions pr\u00e9cises (SNPs, indels, breakpoints)."),
+              shiny::tags$ul(
+                shiny::tags$li("Tracks BigWig ou BedGraph (signal dans la r\u00e9gion)"),
+                shiny::tags$li("Track GTF (g\u00e8ne affect\u00e9)"),
+                shiny::tags$li("Lignes verticales : position exacte du ou des variants")
+              )
             )
           )
         )
       ),
 
-      # -------------------------------------------------------------------------
+      # -----------------------------------------------------------------------
       # Onglet 5 : Bonnes pratiques
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("Bonnes pratiques",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("star"), " Bonnes pratiques"),
-
-          shiny::h5("Organisation des fichiers"),
-          shiny::tags$ul(
-            shiny::tags$li("Placez tous vos fichiers d'un projet dans son dossier dédié."),
-            shiny::tags$li("Nommez vos fichiers de façon descriptive (", shiny::code("sample_H3K27ac.bw"), ")."),
-            shiny::tags$li("Évitez les espaces et caractères spéciaux dans les noms de fichiers.")
-          ),
-
-          shiny::h5("Noms de chromosomes"),
-          shiny::div(class = "warn-box",
-            shiny::icon("exclamation-triangle"),
-            " Assurez-vous que les noms de chromosomes sont cohérents entre tous vos fichiers.
-            Un fichier en ", shiny::code("chr1"), " et un autre en ", shiny::code("1"),
-            " ne pourront pas être combinés."
-          ),
-
-          shiny::h5("Performance"),
-          shiny::tags$ul(
-            shiny::tags$li("Pour les fichiers > 100 Mb, utilisez le format BigWig (binaire) plutôt que BedGraph."),
-            shiny::tags$li("Indexer les fichiers volumineux avec tabix si possible."),
-            shiny::tags$li("Limitez le nombre de tracks actifs simultanément (< 15) pour des temps de rendu raisonnables.")
-          ),
-
-          shiny::h5("Reproductibilité"),
-          shiny::tags$ul(
-            shiny::tags$li("Utilisez la fonction 'Télécharger le script' (onglet Aperçu) pour sauvegarder votre paramétrage."),
-            shiny::tags$li("Le fichier ", shiny::code("tracks.ini"), " généré peut être réutilisé directement en ligne de commande."),
-            shiny::tags$li("Documentez vos projets avec des noms de runs explicites.")
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("star"), " Bonnes pratiques"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("star"), " Bonnes pratiques"),
+            shiny::tags$h6("Organisation des fichiers"),
+            shiny::tags$ul(
+              shiny::tags$li("Placez tous vos fichiers d'un projet dans son dossier d\u00e9di\u00e9."),
+              shiny::tags$li("Nommez vos fichiers de fa\u00e7on descriptive (", shiny::code("sample_H3K27ac.bw"), ")."),
+              shiny::tags$li("\u00c9vitez les espaces et caract\u00e8res sp\u00e9ciaux dans les noms de fichiers.")
+            ),
+            shiny::tags$h6("Noms de chromosomes"),
+            shiny::div(class = "doc-warn-box",
+              shiny::icon("exclamation-triangle"),
+              " Assurez-vous que les noms de chromosomes sont coh\u00e9rents entre tous vos fichiers.
+              Un fichier en ", shiny::code("chr1"), " et un autre en ", shiny::code("1"),
+              " ne pourront pas \u00eatre combin\u00e9s."
+            ),
+            shiny::tags$h6("Performance"),
+            shiny::tags$ul(
+              shiny::tags$li("Pour les fichiers > 100 Mb, utilisez le format BigWig plut\u00f4t que BedGraph."),
+              shiny::tags$li("Indexer les fichiers volumineux avec tabix si possible."),
+              shiny::tags$li("Limitez le nombre de tracks actifs simultan\u00e9ment (< 15) pour des temps de rendu raisonnables.")
+            ),
+            shiny::tags$h6("Reproductibilit\u00e9"),
+            shiny::tags$ul(
+              shiny::tags$li("Utilisez la fonction 'T\u00e9l\u00e9charger le script' (onglet Aper\u00e7u) pour sauvegarder votre param\u00e9trage."),
+              shiny::tags$li("Le fichier ", shiny::code("tracks.ini"), " g\u00e9n\u00e9r\u00e9 peut \u00eatre r\u00e9utilis\u00e9 directement en ligne de commande."),
+              shiny::tags$li("Documentez vos projets avec des noms de runs explicites.")
+            )
           )
         )
       ),
 
-      # -------------------------------------------------------------------------
+      # -----------------------------------------------------------------------
       # Onglet 6 : Troubleshooting
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("Troubleshooting",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("tools"), " Résolution de problèmes"),
-
-          shiny::tags$dl(
-            shiny::tags$dt("pyGenomeTracks est marqué 'manquant'"),
-            shiny::tags$dd(shiny::HTML(
-              "Assurez-vous de lancer l'app via <code>bash scripts/run_app.sh</code> et non
-              <code>Rscript app.R</code>. Le script exporte le PATH de l'environnement conda."
-            )),
-
-            shiny::tags$dt("BEDTools non trouvé"),
-            shiny::tags$dd(shiny::HTML(
-              "Vérifiez que l'env conda <code>rgenometrackui</code> est actif et que BEDTools
-              est installé : <code>conda install -c bioconda bedtools</code>"
-            )),
-
-            shiny::tags$dt("Erreur lors du rendu : 'chromosome not found'"),
-            shiny::tags$dd(
-              "Les noms de chromosomes ne correspondent pas entre les fichiers. Vérifiez
-              qu'ils utilisent tous la même convention (ex: 'chr1' vs '1')."
-            ),
-
-            shiny::tags$dt("La figure n'affiche aucun signal"),
-            shiny::tags$dd(
-              "Vérifiez que la région sélectionnée contient bien des données dans vos fichiers.
-              Testez avec une région plus large ou vérifiez le fichier avec un navigateur génomique."
-            ),
-
-            shiny::tags$dt("Upload de fichier bloqué"),
-            shiny::tags$dd(shiny::HTML(
-              "La taille maximale d'upload par défaut Shiny est 30 Mb. Pour les gros fichiers,
-              utilisez l'option 'Chemin local' pour référencer les fichiers directement sans upload."
-            )),
-
-            shiny::tags$dt("Les packages R ne se chargent pas"),
-            shiny::tags$dd(shiny::HTML(
-              "Relancez <code>bash scripts/run_app.sh</code> depuis un terminal avec l'env conda actif.
-              Vérifiez via <code>bash scripts/check_r_dependencies.R</code>"
-            ))
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("tools"), " Troubleshooting"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("tools"), " R\u00e9solution de probl\u00e8mes"),
+            shiny::tags$dl(
+              shiny::tags$dt("pyGenomeTracks est marqu\u00e9 'manquant'"),
+              shiny::tags$dd(shiny::HTML(
+                "Assurez-vous de lancer l'app via <code>bash scripts/run_app.sh</code> et non
+                <code>Rscript app.R</code>. Le script exporte le PATH de l'environnement conda."
+              )),
+              shiny::tags$dt("BEDTools non trouv\u00e9"),
+              shiny::tags$dd(shiny::HTML(
+                "V\u00e9rifiez que l'env conda <code>rgenometrackui</code> est actif et que BEDTools
+                est install\u00e9 : <code>conda install -c bioconda bedtools</code>"
+              )),
+              shiny::tags$dt("Erreur lors du rendu : 'chromosome not found'"),
+              shiny::tags$dd(
+                "Les noms de chromosomes ne correspondent pas entre les fichiers.
+                V\u00e9rifiez qu'ils utilisent tous la m\u00eame convention (ex: 'chr1' vs '1')."
+              ),
+              shiny::tags$dt("La figure n'affiche aucun signal"),
+              shiny::tags$dd(
+                "V\u00e9rifiez que la r\u00e9gion s\u00e9lectionn\u00e9e contient bien des donn\u00e9es dans vos fichiers.
+                Testez avec une r\u00e9gion plus large ou v\u00e9rifiez le fichier avec un navigateur g\u00e9nomique."
+              ),
+              shiny::tags$dt("Upload de fichier bloqu\u00e9"),
+              shiny::tags$dd(shiny::HTML(
+                "La taille maximale d'upload par d\u00e9faut Shiny est 30 Mb. Pour les gros fichiers,
+                utilisez l'option 'Chemin local' pour r\u00e9f\u00e9rencer les fichiers directement sans upload."
+              )),
+              shiny::tags$dt("Les packages R ne se chargent pas"),
+              shiny::tags$dd(shiny::HTML(
+                "Relancez <code>bash scripts/run_app.sh</code> depuis un terminal avec l'env conda actif."
+              ))
+            )
           )
         )
       ),
 
-      # -------------------------------------------------------------------------
+      # -----------------------------------------------------------------------
       # Onglet 7 : FAQ
-      # -------------------------------------------------------------------------
-      bslib::nav_panel("FAQ",
-        shiny::div(class = "doc-section mt-3",
-          shiny::h4(shiny::icon("question-circle"), " Questions fréquentes"),
-
-          shiny::div(class = "faq-q", "Peut-on visualiser des données d'ARN-seq ?"),
-          shiny::div(class = "faq-a", shiny::HTML(
-            "Oui. Générez un fichier BigWig depuis votre BAM avec <code>bamCoverage</code>
-            (deeptools) et importez-le comme track BigWig."
-          )),
-
-          shiny::div(class = "faq-q", "Peut-on superposer plusieurs tracks BigWig ?"),
-          shiny::div(class = "faq-a", "Oui, ajoutez autant de tracks BigWig que nécessaire dans le Track Builder.
-            Chaque track est indépendant et peut avoir ses propres paramètres de couleur et d'échelle."),
-
-          shiny::div(class = "faq-q", "Le format bigBed est-il supporté ?"),
-          shiny::div(class = "faq-a", shiny::HTML(
-            "Non directement. Convertissez en BED avec <code>bigBedToBed</code> (UCSC tools)."
-          )),
-
-          shiny::div(class = "faq-q", "Comment exporter les figures ?"),
-          shiny::div(class = "faq-a", "Les figures sont générées dans le dossier du run (PNG par défaut).
-            Vous pouvez choisir le format (PNG/PDF/SVG) dans les paramètres de figure."),
-
-          shiny::div(class = "faq-q", "Peut-on utiliser pyGenomeTracks en ligne de commande après avoir configuré via l'interface ?"),
-          shiny::div(class = "faq-a", shiny::HTML(
-            "Oui. La commande Shell générée (onglet Aperçu > Shell script) peut être copiée
-            et exécutée directement dans un terminal avec l'environnement conda actif."
-          )),
-
-          shiny::div(class = "faq-q", "Peut-on partager un projet ?"),
-          shiny::div(class = "faq-a", "Oui. Le dossier de projet contient tous les fichiers de config,
-            les données et les résultats. Compressez-le et partagez-le.")
+      # -----------------------------------------------------------------------
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("question-circle"), " FAQ"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(class = "rt-card",
+            shiny::tags$div(class = "doc-section-title",
+              shiny::icon("question-circle"), " Questions fr\u00e9quentes"),
+            shiny::div(class = "doc-faq-q", "Peut-on visualiser des donn\u00e9es d'ARN-seq ?"),
+            shiny::div(class = "doc-faq-a", shiny::HTML(
+              "Oui. G\u00e9n\u00e9rez un fichier BigWig depuis votre BAM avec <code>bamCoverage</code>
+              (deeptools) et importez-le comme track BigWig."
+            )),
+            shiny::div(class = "doc-faq-q", "Peut-on superposer plusieurs tracks BigWig ?"),
+            shiny::div(class = "doc-faq-a",
+              "Oui, ajoutez autant de tracks BigWig que n\u00e9cessaire dans le Track Builder.
+              Chaque track est ind\u00e9pendant et peut avoir ses propres param\u00e8tres de couleur et d'\u00e9chelle."
+            ),
+            shiny::div(class = "doc-faq-q", "Le format bigBed est-il support\u00e9 ?"),
+            shiny::div(class = "doc-faq-a", shiny::HTML(
+              "Non directement. Convertissez en BED avec <code>bigBedToBed</code> (UCSC tools)."
+            )),
+            shiny::div(class = "doc-faq-q", "Comment exporter les figures ?"),
+            shiny::div(class = "doc-faq-a",
+              "Les figures sont g\u00e9n\u00e9r\u00e9es dans le dossier du run (PNG par d\u00e9faut).
+              Vous pouvez choisir le format (PNG/PDF/SVG) dans les param\u00e8tres de figure."
+            ),
+            shiny::div(class = "doc-faq-q",
+              "Peut-on utiliser pyGenomeTracks en ligne de commande apr\u00e8s avoir configur\u00e9 via l'interface ?"),
+            shiny::div(class = "doc-faq-a", shiny::HTML(
+              "Oui. La commande Shell g\u00e9n\u00e9r\u00e9e (onglet Aper\u00e7u > Shell script) peut \u00eatre copi\u00e9e
+              et ex\u00e9cut\u00e9e directement dans un terminal avec l'environnement conda actif."
+            )),
+            shiny::div(class = "doc-faq-q", "Peut-on partager un projet ?"),
+            shiny::div(class = "doc-faq-a",
+              "Oui. Le dossier de projet contient tous les fichiers de config,
+              les donn\u00e9es et les r\u00e9sultats. Compressez-le et partagez-le."
+            )
+          )
         )
       )
     )

@@ -9,35 +9,57 @@
 mod_results_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Résultats"),
+
+    omics_banner(
+      "Résultats",
+      "Visualisez et téléchargez la figure et les fichiers générés.",
+      small = TRUE
+    ),
+
     shiny::uiOutput(ns("run_selector_ui")),
+
     shiny::fluidRow(
+      # Left: run info + downloads
       shiny::column(4,
-        shiny::wellPanel(
-          shiny::h5("Informations du run"),
-          shiny::uiOutput(ns("run_info_ui")),
-          shiny::hr(),
-          shiny::h5("Téléchargements"),
-          shiny::downloadButton(ns("dl_figure"),   "Figure (PNG/PDF)",    class = "btn btn-sm btn-outline-primary d-block mb-1"),
-          shiny::downloadButton(ns("dl_ini"),       "tracks.ini",          class = "btn btn-sm btn-outline-secondary d-block mb-1"),
-          shiny::downloadButton(ns("dl_r_script"),  "Script R",            class = "btn btn-sm btn-outline-secondary d-block mb-1"),
-          shiny::downloadButton(ns("dl_sh_script"), "Script Shell",        class = "btn btn-sm btn-outline-secondary d-block mb-1"),
-          shiny::downloadButton(ns("dl_logs"),      "Logs",                class = "btn btn-sm btn-outline-secondary d-block mb-1"),
-          shiny::downloadButton(ns("dl_zip"),       "Archive ZIP complète",class = "btn btn-sm btn-outline-dark d-block mb-1")
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("info-circle")),
+            shiny::tags$h5("Informations du run")
+          ),
+          shiny::uiOutput(ns("run_info_ui"))
+        ),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("download")),
+            shiny::tags$h5("Téléchargements")
+          ),
+          download_card_btn(ns("dl_figure"),   "Figure (PNG/PDF)", "image", "outputs"),
+          download_card_btn(ns("dl_ini"),       "tracks.ini",       "file-code", "config"),
+          download_card_btn(ns("dl_r_script"),  "Script R",         "r-project", ".R"),
+          download_card_btn(ns("dl_sh_script"), "Script Shell",     "terminal", ".sh"),
+          download_card_btn(ns("dl_logs"),      "Logs",             "file-alt", ".txt"),
+          download_card_btn(ns("dl_zip"),       "Archive ZIP",      "file-archive", "tout")
         )
       ),
+      # Right: figure + files + logs
       shiny::column(8,
-        shiny::tabsetPanel(
-          shiny::tabPanel("Figure",
-            shiny::br(),
-            shiny::uiOutput(ns("figure_ui"))
+        bslib::navset_tab(
+          bslib::nav_panel(
+            shiny::tagList(shiny::icon("image"), " Figure"),
+            shiny::div(class = "mt-2", shiny::uiOutput(ns("figure_ui")))
           ),
-          shiny::tabPanel("Fichiers de sortie",
-            shiny::br(),
-            shiny::uiOutput(ns("outputs_list_ui"))
+          bslib::nav_panel(
+            shiny::tagList(shiny::icon("folder-open"), " Fichiers"),
+            shiny::div(class = "mt-2", shiny::uiOutput(ns("outputs_list_ui")))
           ),
-          shiny::tabPanel("Logs",
-            shiny::verbatimTextOutput(ns("logs_view"))
+          bslib::nav_panel(
+            shiny::tagList(shiny::icon("align-left"), " Logs"),
+            shiny::div(class = "mt-2",
+              code_box(ns("logs_view"), lang = "log"))
           )
         )
       )
@@ -61,11 +83,17 @@ mod_results_server <- function(id, app_state) {
     output$run_selector_ui <- shiny::renderUI({
       path <- selected_run_path()
       if (is.null(path)) {
-        shiny::div(class = "alert alert-info",
-                   "Aucun run sélectionné. Lancez un run ou sélectionnez-en un dans l'historique.")
+        shiny::tags$div(
+          class = "alert alert-info mb-3",
+          shiny::icon("info-circle"),
+          " Aucun run sélectionné. Lancez un run ou sélectionnez-en un dans l'historique."
+        )
       } else {
-        shiny::div(class = "alert alert-success",
-                   shiny::strong("Run actif : "), shiny::code(path))
+        shiny::tags$div(
+          class = "mb-3 flex-row gap-8",
+          shiny::tags$span(style = "font-size:12px;color:var(--rt-muted);", "Run actif :"),
+          path_block(path)
+        )
       }
     })
 
@@ -77,34 +105,58 @@ mod_results_server <- function(id, app_state) {
 
     output$run_info_ui <- shiny::renderUI({
       meta <- run_meta()
-      if (is.null(meta)) return(shiny::p(class = "text-muted", "Aucun run."))
-      st_class <- switch(meta$status %||% "unknown",
-        "completed" = "text-success", "failed" = "text-danger",
-        "running" = "text-warning", "text-secondary")
-      shiny::tagList(
-        shiny::tags$dl(
-          shiny::tags$dt("Nom"),     shiny::tags$dd(meta$run_name %||% "?"),
-          shiny::tags$dt("Statut"),  shiny::tags$dd(shiny::span(class = st_class, meta$status %||% "?")),
-          shiny::tags$dt("Créé"),    shiny::tags$dd(meta$created_at %||% "?"),
-          shiny::tags$dt("Région"),  shiny::tags$dd(meta$region %||% "?"),
-          shiny::tags$dt("Renderer"),shiny::tags$dd(meta$renderer %||% "?")
+      if (is.null(meta)) {
+        return(empty_state("Aucun run", "Lancez ou sélectionnez un run.", icon_name = "play-circle"))
+      }
+      st <- meta$status %||% "unknown"
+      shiny::tags$div(
+        shiny::tags$div(
+          class = "mb-2",
+          status_badge(st)
+        ),
+        shiny::tags$div(
+          style = "display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:baseline;",
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Nom"),
+          shiny::tags$span(style = "font-weight:600;font-size:13px;", meta$run_name %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Créé"),
+          shiny::tags$span(style = "font-size:12px;color:var(--rt-muted);", meta$created_at %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Région"),
+          shiny::tags$span(style = "font-size:12px;font-family:var(--rt-font-mono);", meta$region %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Renderer"),
+          status_badge("info", label = meta$renderer %||% "?", show_dot = FALSE)
         )
       )
     })
 
     output$figure_ui <- shiny::renderUI({
       path <- selected_run_path()
-      if (is.null(path)) return(shiny::p("Pas de run sélectionné."))
+      if (is.null(path)) {
+        return(empty_state("Aucune figure", "Lancez un run pour générer une figure.",
+                           icon_name = "image"))
+      }
       out_dir <- file.path(path, "outputs", "multi_region")
-      if (!dir.exists(out_dir)) return(shiny::p("Pas encore de sorties."))
+      if (!dir.exists(out_dir)) {
+        return(empty_state("Pas encore de sorties", "Le run n'a pas encore généré de fichiers.",
+                           icon_name = "image"))
+      }
       pngs <- list.files(out_dir, pattern = "\\.png$", full.names = TRUE)
-      if (length(pngs) == 0) return(shiny::p("Aucune figure PNG générée."))
-      # Expose le répertoire de sortie comme ressource statique Shiny
+      if (length(pngs) == 0) {
+        return(empty_state("Aucune figure PNG", "Vérifiez les logs pour détecter l'erreur.",
+                           icon_name = "image"))
+      }
       shiny::addResourcePath("run_output_current", out_dir)
-      shiny::tags$img(
-        src   = paste0("run_output_current/", basename(pngs[1])),
-        style = "max-width:100%;",
-        alt   = "Figure générée"
+      shiny::tags$div(
+        class = "figure-card",
+        shiny::tags$img(
+          src   = paste0("run_output_current/", basename(pngs[1])),
+          style = "max-width:100%;",
+          alt   = "Figure générée"
+        ),
+        shiny::tags$div(
+          class = "figure-caption",
+          basename(pngs[1]), " — ",
+          sprintf("%.0f KB", file.info(pngs[1])$size / 1024)
+        )
       )
     })
 

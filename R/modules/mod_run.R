@@ -9,41 +9,68 @@
 mod_run_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Lancer un run"),
+
+    omics_banner(
+      "Lancer un run",
+      "Préparez et exécutez l'analyse pyGenomeTracks ou rGenomeTracks.",
+      small = TRUE
+    ),
+
     shiny::fluidRow(
+      # Left: config + checklist + buttons
       shiny::column(5,
-        bslib::card(
-          bslib::card_header(shiny::icon("play-circle"), " Configuration du run"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("play-circle")),
+            shiny::tags$h5("Configuration du run")
+          ),
           shiny::textInput(ns("run_name"), "Nom du run",
                            placeholder = "ex: H3K27ac_GENE1_test"),
-          shiny::hr(),
-          shiny::h6(shiny::icon("clipboard-check"), " Validation avant lancement"),
+          shiny::tags$small(class = "text-muted", "Laissez vide pour un nom auto-généré."),
+          shiny::tags$hr(class = "divider"),
+          shiny::tags$div(
+            class = "param-section-title",
+            shiny::icon("clipboard-check"), " Validation avant lancement"
+          ),
           shiny::uiOutput(ns("pre_run_checklist")),
-          shiny::hr(),
+          shiny::tags$hr(class = "divider"),
           shiny::actionButton(ns("btn_prepare"),
-            shiny::icon("cogs"), " Préparer le run",
-            class = "btn btn-outline-primary w-100"),
+            shiny::tagList(shiny::icon("cogs"), " Préparer le run"),
+            class = "btn btn-secondary w-100"),
           shiny::div(class = "mt-2"),
           shinyjs::disabled(
             shiny::actionButton(ns("btn_run"),
-              shiny::icon("rocket"), " Lancer l'analyse",
-              class = "btn btn-success w-100 btn-lg")
+              shiny::tagList(shiny::icon("rocket"), " Lancer l'analyse"),
+              class = "btn btn-primary w-100 btn-cta")
           ),
-          shiny::hr(),
+          shiny::div(class = "mt-3"),
           shiny::uiOutput(ns("run_path_display"))
         )
       ),
+      # Right: status + logs
       shiny::column(7,
-        bslib::card(
-          bslib::card_header(shiny::icon("terminal"), " Statut & logs"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("terminal")),
+            shiny::tags$h5("Statut & logs")
+          ),
           shiny::uiOutput(ns("run_status_ui")),
           shiny::uiOutput(ns("btn_goto_results_ui")),
+          shiny::tags$div(class = "mt-2"),
           bslib::navset_tab(
-            bslib::nav_panel("stdout",
-              shiny::verbatimTextOutput(ns("log_stdout"))
+            bslib::nav_panel(
+              shiny::tagList(shiny::icon("align-left"), " stdout"),
+              shiny::tags$div(class = "mt-2",
+                code_box(ns("log_stdout"), lang = "log", title = "Standard output"))
             ),
-            bslib::nav_panel("stderr",
-              shiny::verbatimTextOutput(ns("log_stderr"))
+            bslib::nav_panel(
+              shiny::tagList(shiny::icon("exclamation-circle"), " stderr"),
+              shiny::tags$div(class = "mt-2",
+                code_box(ns("log_stderr"), lang = "log", title = "Standard error"))
             )
           )
         )
@@ -139,43 +166,39 @@ mod_run_server <- function(id, app_state, schema) {
     output$pre_run_checklist <- shiny::renderUI({
       checks <- check_readiness()
       items <- lapply(checks, function(chk) {
-        ico  <- if (chk$ok) shiny::icon("check-circle") else shiny::icon("times-circle")
-        cls  <- if (chk$ok) "text-success" else "text-danger"
-        shiny::div(class = "d-flex align-items-center gap-2 mb-1",
-          shiny::span(ico, class = cls),
-          shiny::div(
-            shiny::span(chk$label, class = "fw-semibold"),
-            shiny::span(paste0(" — ", chk$msg), class = "text-muted small")
-          )
+        checklist_item(
+          shiny::tagList(
+            shiny::tags$span(style = "font-weight:600;", chk$label),
+            shiny::tags$span(style = "color:var(--rt-muted);font-size:11px;margin-left:6px;",
+                             paste0("— ", chk$msg))
+          ),
+          status = if (chk$ok) "ok" else "error"
         )
       })
-      shiny::tagList(items)
+      checklist_ui(items)
     })
 
     output$run_status_ui <- shiny::renderUI({
-      st   <- run_status()
-      meta <- current_run()
-      cfg <- list(
-        idle      = list(cls = "alert-secondary", icon = "clock",   label = "En attente"),
-        prepared  = list(cls = "alert-info",      icon = "info-circle", label = "Prêt à lancer"),
-        running   = list(cls = "alert-warning",   icon = "spinner", label = "En cours…"),
-        completed = list(cls = "alert-success",   icon = "check-circle", label = "Terminé avec succès"),
-        failed    = list(cls = "alert-danger",    icon = "times-circle", label = "Échec")
-      )
-      conf <- cfg[[st]] %||% cfg$idle
-      shiny::div(class = paste("alert", conf$cls, "p-2"),
-        shiny::icon(conf$icon), shiny::strong(paste0(" ", conf$label)),
-        if (!is.null(meta)) shiny::tagList(shiny::br(),
-          shiny::tags$small("Dossier : ", shiny::code(meta$run_path))) else NULL
-      )
+      st <- run_status()
+      status_badge(st, label = switch(st,
+        "idle"      = "En attente",
+        "prepared"  = "Prêt à lancer",
+        "running"   = "En cours…",
+        "completed" = "Terminé avec succès",
+        "failed"    = "Échec",
+        st
+      ))
     })
 
     output$run_path_display <- shiny::renderUI({
       meta <- current_run()
       if (is.null(meta)) return(NULL)
-      shiny::div(class = "alert alert-light p-2",
-        shiny::icon("folder-open"), " Dossier du run :",
-        shiny::br(), shiny::code(meta$run_path)
+      shiny::tags$div(
+        shiny::tags$div(
+          style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;margin-bottom:4px;",
+          shiny::icon("folder-open"), " Dossier du run"
+        ),
+        path_block(meta$run_path)
       )
     })
 

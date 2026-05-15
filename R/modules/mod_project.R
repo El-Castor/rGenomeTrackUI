@@ -9,33 +9,72 @@
 mod_project_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Gestion des projets"),
+
+    # Banner
+    omics_banner(
+      "Gestion des projets",
+      "Créez ou ouvrez un projet pour organiser vos données et analyses génomiques.",
+      small = TRUE
+    ),
+
     shiny::fluidRow(
       # --- Create project panel
       shiny::column(5,
-        shiny::wellPanel(
-          shiny::h4("Créer un nouveau projet"),
-          shiny::textInput(ns("project_name"), "Nom du projet *", placeholder = "ex: ATAC-seq hg38 K562"),
-          shiny::textInput(ns("genome_label"), "Génome *", placeholder = "ex: hg38, mm10, dm6"),
-          shiny::textAreaInput(ns("description"), "Description (optionnel)", rows = 2),
-          shiny::actionButton(ns("btn_create"), "Créer le projet", class = "btn btn-primary"),
-          shiny::uiOutput(ns("create_feedback"))
-        )
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("folder-plus")),
+            shiny::tags$h5("Nouveau projet")
+          ),
+          shiny::textInput(ns("project_name"), "Nom du projet *",
+                           placeholder = "ex: ATAC-seq hg38 K562"),
+          shiny::tags$div(
+            class = "d-flex gap-2",
+            shiny::div(style = "flex:1;",
+              shiny::textInput(ns("genome_label"), "Génome *",
+                               placeholder = "ex: hg38, mm10")
+            )
+          ),
+          shiny::textAreaInput(ns("description"), "Description (optionnel)",
+                               rows = 2, resize = "none"),
+          shiny::div(
+            class = "mt-2",
+            shiny::actionButton(ns("btn_create"),
+              shiny::tagList(shiny::icon("plus"), " Créer le projet"),
+              class = "btn btn-primary"),
+            shiny::uiOutput(ns("create_feedback"))
+          )
+        ),
+        # Active project card
+        shiny::uiOutput(ns("active_project_card"))
       ),
       # --- Existing projects panel
       shiny::column(7,
-        shiny::h4("Projets existants"),
-        shiny::actionButton(ns("btn_refresh"), "Actualiser", class = "btn btn-sm btn-outline-secondary"),
-        shiny::br(), shiny::br(),
-        DT::DTOutput(ns("projects_table")),
-        shiny::br(),
-        shiny::actionButton(ns("btn_open"), "Ouvrir le projet sélectionné",
-                            class = "btn btn-success", disabled = NA)
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header flex-between",
+            shiny::tags$div(
+              class = "flex-row gap-8",
+              shiny::tags$span(class = "rt-card-icon", shiny::icon("list")),
+              shiny::tags$h5("Projets existants")
+            ),
+            shiny::actionButton(ns("btn_refresh"),
+              shiny::tagList(shiny::icon("sync"), " Actualiser"),
+              class = "btn btn-secondary btn-sm")
+          ),
+          DT::DTOutput(ns("projects_table")),
+          shiny::tags$div(
+            class = "mt-3",
+            shiny::actionButton(ns("btn_open"),
+              shiny::tagList(shiny::icon("folder-open"), " Ouvrir le projet sélectionné"),
+              class = "btn btn-primary",
+              disabled = NA)
+          )
+        )
       )
-    ),
-    shiny::hr(),
-    shiny::h4("Projet actif"),
-    shiny::uiOutput(ns("active_project_card"))
+    )
   )
 }
 
@@ -125,15 +164,41 @@ mod_project_server <- function(id, app_state) {
 
     output$active_project_card <- shiny::renderUI({
       proj <- app_state$project_config
-      if (is.null(proj)) return(shiny::div(class = "text-muted", "Aucun projet actif."))
-      shiny::wellPanel(
-        shiny::tags$dl(
-          shiny::tags$dt("Nom"), shiny::tags$dd(proj$project_name %||% "?"),
-          shiny::tags$dt("Génome"), shiny::tags$dd(proj$genome_label %||% "?"),
-          shiny::tags$dt("Créé le"), shiny::tags$dd(proj$created_at %||% "?"),
-          shiny::tags$dt("Chemin"), shiny::tags$dd(shiny::code(proj$project_path %||% "?"))
+      if (is.null(proj)) {
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("folder")),
+            shiny::tags$h5("Projet actif")
+          ),
+          empty_state(
+            "Aucun projet actif",
+            "Sélectionnez ou créez un projet.",
+            icon_name = "folder-open"
+          )
         )
-      )
+      } else {
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("folder-open")),
+            shiny::tags$h5("Projet actif")
+          ),
+          shiny::tags$div(
+            style = "display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:baseline;",
+            shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Nom"),
+            shiny::tags$span(style = "font-weight:600;", proj$project_name %||% "?"),
+            shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Génome"),
+            status_badge("accent", label = proj$genome_label %||% "?", show_dot = FALSE),
+            shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Créé le"),
+            shiny::tags$span(style = "color:var(--rt-muted);font-size:12px;", proj$created_at %||% "?"),
+            shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Chemin"),
+            path_block(proj$project_path %||% "?")
+          )
+        )
+      }
     })
   })
 }

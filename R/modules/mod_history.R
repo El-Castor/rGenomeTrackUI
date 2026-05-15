@@ -9,29 +9,50 @@
 mod_history_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Historique des runs"),
-    shiny::fluidRow(
-      shiny::column(3,
-        shiny::selectInput(ns("filter_project"), "Filtrer par projet",
-                           choices = c("Tous" = ""), width = "100%"),
-        shiny::actionButton(ns("btn_refresh"), "Actualiser", class = "btn btn-sm btn-outline-secondary")
-      ),
-      shiny::column(9,
-        DT::DTOutput(ns("history_table"))
-      )
+
+    omics_banner(
+      "Historique des runs",
+      "Retrouvez, dupliquez ou relancez vos analyses passées.",
+      small = TRUE
     ),
-    shiny::hr(),
-    shiny::fluidRow(
-      shiny::column(12,
-        shiny::fluidRow(
-          shiny::column(2, shinyjs::disabled(shiny::actionButton(ns("btn_view"),   "Voir",           class = "btn btn-primary"))),
-          shiny::column(2, shinyjs::disabled(shiny::actionButton(ns("btn_dup"),    "Dupliquer config",class = "btn btn-outline-secondary"))),
-          shiny::column(2, shinyjs::disabled(shiny::actionButton(ns("btn_rerun"),  "Relancer",       class = "btn btn-outline-success"))),
-          shiny::column(2, shinyjs::disabled(shiny::actionButton(ns("btn_delete"), "Supprimer",      class = "btn btn-outline-danger")))
+
+    shiny::tags$div(
+      class = "rt-card",
+      shiny::tags$div(
+        class = "rt-card-header flex-between",
+        shiny::tags$div(
+          class = "flex-row gap-8",
+          shiny::tags$span(class = "rt-card-icon", shiny::icon("history")),
+          shiny::tags$h5("Runs")
+        ),
+        shiny::tags$div(
+          class = "d-flex gap-2 align-items-center",
+          shiny::selectInput(ns("filter_project"), NULL,
+                             choices = c("Tous les projets" = ""),
+                             width = "200px"),
+          shiny::actionButton(ns("btn_refresh"),
+            shiny::tagList(shiny::icon("sync"), " Actualiser"),
+            class = "btn btn-secondary btn-sm")
         )
+      ),
+      DT::DTOutput(ns("history_table")),
+      shiny::tags$div(
+        class = "mt-3 d-flex gap-2",
+        shinyjs::disabled(shiny::actionButton(ns("btn_view"),
+          shiny::tagList(shiny::icon("eye"), " Voir"),
+          class = "btn btn-primary")),
+        shinyjs::disabled(shiny::actionButton(ns("btn_dup"),
+          shiny::tagList(shiny::icon("copy"), " Dupliquer"),
+          class = "btn btn-secondary")),
+        shinyjs::disabled(shiny::actionButton(ns("btn_rerun"),
+          shiny::tagList(shiny::icon("redo"), " Relancer"),
+          class = "btn btn-secondary")),
+        shinyjs::disabled(shiny::actionButton(ns("btn_delete"),
+          shiny::tagList(shiny::icon("trash"), " Supprimer"),
+          class = "btn btn-danger"))
       )
     ),
-    shiny::br(),
+
     shiny::uiOutput(ns("run_detail_ui"))
   )
 }
@@ -109,18 +130,37 @@ mod_history_server <- function(id, app_state, schema) {
       row <- selected_run_row()
       if (is.null(row)) return(NULL)
       meta <- tryCatch(load_run_metadata(row$run_path), error = function(e) NULL)
-      if (is.null(meta)) return(shiny::p("Impossible de charger les métadonnées."))
-      shiny::wellPanel(
-        shiny::h5("Détails du run"),
-        shiny::tags$dl(
-          shiny::tags$dt("ID"),       shiny::tags$dd(shiny::code(meta$run_id %||% "?")),
-          shiny::tags$dt("Nom"),      shiny::tags$dd(meta$run_name %||% "?"),
-          shiny::tags$dt("Région"),   shiny::tags$dd(meta$region %||% "?"),
-          shiny::tags$dt("Renderer"), shiny::tags$dd(meta$renderer %||% "?"),
-          shiny::tags$dt("Statut"),   shiny::tags$dd(meta$status %||% "?"),
-          shiny::tags$dt("Créé"),     shiny::tags$dd(meta$created_at %||% "?"),
-          shiny::tags$dt("Terminé"),  shiny::tags$dd(meta$completed_at %||% "—"),
-          shiny::tags$dt("Chemin"),   shiny::tags$dd(shiny::code(row$run_path))
+      if (is.null(meta)) {
+        return(shiny::tags$div(
+          class = "alert alert-warning mt-2",
+          shiny::icon("exclamation-triangle"),
+          " Impossible de charger les métadonnées."
+        ))
+      }
+      shiny::tags$div(
+        class = "rt-card mt-2",
+        shiny::tags$div(
+          class = "rt-card-header",
+          shiny::tags$span(class = "rt-card-icon", shiny::icon("info-circle")),
+          shiny::tags$h5("Détails du run"),
+          shiny::tags$div(class = "ms-auto", status_badge(meta$status %||% "unknown"))
+        ),
+        shiny::tags$div(
+          style = "display:grid;grid-template-columns:auto 1fr;gap:5px 14px;align-items:baseline;",
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "ID"),
+          shiny::tags$code(meta$run_id %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Nom"),
+          shiny::tags$span(style = "font-weight:600;", meta$run_name %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Région"),
+          shiny::tags$span(style = "font-family:var(--rt-font-mono);font-size:12px;", meta$region %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Renderer"),
+          status_badge("info", label = meta$renderer %||% "?", show_dot = FALSE),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Créé"),
+          shiny::tags$span(style = "color:var(--rt-muted);font-size:12px;", meta$created_at %||% "?"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Terminé"),
+          shiny::tags$span(style = "color:var(--rt-muted);font-size:12px;", meta$completed_at %||% "—"),
+          shiny::tags$span(style = "font-size:11px;font-weight:600;color:var(--rt-muted);text-transform:uppercase;", "Chemin"),
+          path_block(row$run_path)
         )
       )
     })

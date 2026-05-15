@@ -9,46 +9,89 @@
 mod_preview_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Aperçu de la configuration"),
+
+    omics_banner(
+      "Aperçu de la configuration",
+      "Vérifiez les fichiers générés avant de lancer l'analyse.",
+      small = TRUE
+    ),
+
     shiny::fluidRow(
+      # Left: validation + summary
       shiny::column(4,
-        bslib::card(
-          bslib::card_header(shiny::icon("check-double"), " Checklist de validation"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("check-double")),
+            shiny::tags$h5("Checklist")
+          ),
           shiny::uiOutput(ns("checklist_ui"))
         ),
-        bslib::card(
-          bslib::card_header(shiny::icon("info-circle"), " Résumé"),
+        shiny::tags$div(
+          class = "rt-card",
+          shiny::tags$div(
+            class = "rt-card-header",
+            shiny::tags$span(class = "rt-card-icon", shiny::icon("info-circle")),
+            shiny::tags$h5("Résumé")
+          ),
           shiny::uiOutput(ns("summary_ui"))
         )
       ),
+      # Right: config files
       shiny::column(8,
         bslib::navset_tab(
-          bslib::nav_panel("tracks.ini",
-            shiny::div(class = "d-flex justify-content-end gap-2 mt-2 mb-1",
-              shiny::downloadButton(ns("dl_ini"), "Télécharger .ini",
-                class = "btn btn-outline-secondary btn-sm"),
-              shiny::actionButton(ns("copy_ini"), shiny::icon("copy"), " Copier",
-                class = "btn btn-outline-secondary btn-sm",
-                onclick = sprintf(
-                  "navigator.clipboard.writeText(document.getElementById('%s').textContent)",
-                  ns("ini_preview")
-                ))
-            ),
-            shiny::verbatimTextOutput(ns("ini_preview"))
+          bslib::nav_panel(
+            shiny::tagList(shiny::icon("file-code"), " tracks.ini"),
+            shiny::div(
+              class = "mt-2",
+              shiny::div(
+                class = "flex-between mb-2",
+                shiny::tags$span(style = "font-size:12px;color:var(--rt-muted);",
+                                 "Configuration des tracks générée"),
+                shiny::div(
+                  class = "d-flex gap-2",
+                  shiny::actionButton(ns("copy_ini"),
+                    shiny::tagList(shiny::icon("copy"), " Copier"),
+                    class = "btn btn-secondary btn-sm",
+                    `data-copy-target` = paste0("#", ns("ini_preview"))),
+                  shiny::downloadButton(ns("dl_ini"),
+                    shiny::tagList(shiny::icon("download"), " .ini"),
+                    class = "btn btn-secondary btn-sm")
+                )
+              ),
+              code_box(ns("ini_preview"), lang = "ini")
+            )
           ),
-          bslib::nav_panel("Script R",
-            shiny::div(class = "d-flex justify-content-end gap-2 mt-2 mb-1",
-              shiny::downloadButton(ns("dl_r_script"), "Télécharger .R",
-                class = "btn btn-outline-secondary btn-sm")
-            ),
-            shiny::verbatimTextOutput(ns("r_script_preview"))
+          bslib::nav_panel(
+            shiny::tagList(shiny::icon("r-project"), " Script R"),
+            shiny::div(
+              class = "mt-2",
+              shiny::div(
+                class = "flex-between mb-2",
+                shiny::tags$span(style = "font-size:12px;color:var(--rt-muted);",
+                                 "Script rGenomeTracks"),
+                shiny::downloadButton(ns("dl_r_script"),
+                  shiny::tagList(shiny::icon("download"), " .R"),
+                  class = "btn btn-secondary btn-sm")
+              ),
+              code_box(ns("r_script_preview"), lang = "R")
+            )
           ),
-          bslib::nav_panel("Script Shell",
-            shiny::div(class = "d-flex justify-content-end gap-2 mt-2 mb-1",
-              shiny::downloadButton(ns("dl_sh_script"), "Télécharger .sh",
-                class = "btn btn-outline-secondary btn-sm")
-            ),
-            shiny::verbatimTextOutput(ns("sh_script_preview"))
+          bslib::nav_panel(
+            shiny::tagList(shiny::icon("terminal"), " Script Shell"),
+            shiny::div(
+              class = "mt-2",
+              shiny::div(
+                class = "flex-between mb-2",
+                shiny::tags$span(style = "font-size:12px;color:var(--rt-muted);",
+                                 "Script pyGenomeTracks"),
+                shiny::downloadButton(ns("dl_sh_script"),
+                  shiny::tagList(shiny::icon("download"), " .sh"),
+                  class = "btn btn-secondary btn-sm")
+              ),
+              code_box(ns("sh_script_preview"), lang = "bash")
+            )
           )
         )
       )
@@ -117,28 +160,26 @@ mod_preview_server <- function(id, app_state, schema) {
       )
 
       items <- lapply(checks, function(chk) {
-        icon_name  <- if (chk$ok) "check-circle" else "times-circle"
-        icon_class <- if (chk$ok) "text-success" else "text-danger"
-        shiny::div(class = "d-flex align-items-start gap-2 mb-2",
-          shiny::span(shiny::icon(icon_name), class = icon_class),
-          shiny::div(
-            shiny::strong(chk$label),
-            shiny::div(class = "text-muted small", chk$detail)
-          )
+        st <- if (chk$ok) "ok" else "error"
+        checklist_item(
+          shiny::tagList(
+            shiny::tags$strong(chk$label),
+            shiny::tags$div(style = "font-size:11px;color:var(--rt-muted);", chk$detail)
+          ),
+          status = st
         )
       })
 
       n_ok <- sum(vapply(checks, function(c) isTRUE(c$ok), logical(1)))
       n    <- length(checks)
-      overall_class <- if (n_ok == n) "success" else if (n_ok >= n - 1) "warning" else "danger"
-      overall_icon  <- if (n_ok == n) "check-circle" else "exclamation-triangle"
+      overall_st <- if (n_ok == n) "ok" else if (n_ok >= n - 1) "warning" else "error"
 
       shiny::tagList(
-        shiny::div(class = paste0("alert alert-", overall_class, " p-2 mb-2"),
-          shiny::icon(overall_icon),
-          sprintf(" %d/%d éléments validés", n_ok, n)
+        shiny::div(
+          class = "mb-2",
+          status_badge(overall_st, label = sprintf("%d / %d validés", n_ok, n))
         ),
-        items
+        checklist_ui(items)
       )
     })
 

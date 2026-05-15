@@ -9,106 +9,157 @@
 mod_inputs_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    shiny::h3("Fichiers d'entrée"),
+
+    omics_banner(
+      "Fichiers d'entrée",
+      "Importez et gérez les fichiers de données génomiques pour vos analyses.",
+      small = TRUE
+    ),
+
     shiny::uiOutput(ns("project_check")),
+
     bslib::navset_tab(
       id = ns("inputs_tabs"),
 
       # ---- Onglet 1 : Ajouter un fichier ----
-      bslib::nav_panel("Ajouter un fichier",
-        shiny::br(),
-        shiny::fluidRow(
-          shiny::column(5,
-            bslib::card(
-              bslib::card_header("Source du fichier"),
-              bslib::navset_tab(
-                bslib::nav_panel("Upload",
-                  shiny::br(),
-                  shiny::fileInput(ns("file_upload"), "Choisir un fichier",
-                                   accept = c(".bw", ".bigwig", ".bed", ".bedgraph", ".bg",
-                                              ".gtf", ".gff", ".gff3", ".narrowPeak",
-                                              ".bedpe", ".links")),
-                  shiny::selectInput(ns("upload_track_type"), "Type de track associé",
-                                     choices = c("Auto-détecté" = "")),
-                  shiny::uiOutput(ns("upload_format_hint")),
-                  shiny::selectInput(ns("upload_mode"), "Mode d'import",
-                                     choices = c("Copier" = "copy", "Lien symbolique" = "link")),
-                  shiny::textInput(ns("upload_notes"), "Notes (optionnel)"),
-                  shiny::actionButton(ns("btn_add_upload"), shiny::icon("plus"), " Ajouter au registre",
-                                      class = "btn btn-primary w-100")
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("plus-circle"), " Ajouter"),
+        shiny::div(class = "mt-3",
+          shiny::fluidRow(
+            shiny::column(5,
+              shiny::tags$div(
+                class = "rt-card",
+                shiny::tags$div(
+                  class = "rt-card-header",
+                  shiny::tags$span(class = "rt-card-icon", shiny::icon("file-import")),
+                  shiny::tags$h5("Source du fichier")
                 ),
-                bslib::nav_panel("Chemin local",
-                  shiny::br(),
-                  shiny::div(class = "alert alert-info p-2",
-                    shiny::icon("lightbulb"), " Utilisez cette option pour des fichiers volumineux
-                    (> 30 Mb) déjà présents sur le serveur."
+                bslib::navset_tab(
+                  bslib::nav_panel(
+                    shiny::tagList(shiny::icon("upload"), " Upload"),
+                    shiny::div(class = "mt-2",
+                      shiny::fileInput(ns("file_upload"), "Choisir un fichier",
+                                       accept = c(".bw", ".bigwig", ".bed", ".bedgraph", ".bg",
+                                                  ".gtf", ".gff", ".gff3", ".narrowPeak",
+                                                  ".bedpe", ".links")),
+                      shiny::selectInput(ns("upload_track_type"), "Type de track",
+                                         choices = c("Auto-détecté" = "")),
+                      shiny::uiOutput(ns("upload_format_hint")),
+                      shiny::selectInput(ns("upload_mode"), "Mode d'import",
+                                         choices = c("Copier dans le projet" = "copy",
+                                                     "Lien symbolique" = "link")),
+                      shiny::textInput(ns("upload_notes"), "Notes (optionnel)"),
+                      shiny::actionButton(ns("btn_add_upload"),
+                        shiny::tagList(shiny::icon("plus"), " Ajouter au registre"),
+                        class = "btn btn-primary w-100")
+                    )
                   ),
-                  shiny::textInput(ns("local_path"), "Chemin absolu vers le fichier",
-                                   placeholder = "/data/sample/file.bw"),
-                  shiny::selectInput(ns("local_track_type"), "Type de track associé",
-                                     choices = c("Auto-détecté" = "")),
-                  shiny::uiOutput(ns("local_format_hint")),
-                  shiny::selectInput(ns("local_mode"), "Mode d'import",
-                                     choices = c("Copier" = "copy", "Lien symbolique" = "link")),
-                  shiny::textInput(ns("local_notes"), "Notes (optionnel)"),
-                  shiny::actionButton(ns("btn_add_local"), shiny::icon("plus"), " Ajouter au registre",
-                                      class = "btn btn-primary w-100")
-                )
-              ),
-              shiny::uiOutput(ns("add_feedback"))
-            )
-          ),
-          shiny::column(7,
-            bslib::card(
-              bslib::card_header("Validation du fichier"),
-              shiny::uiOutput(ns("file_validation_panel"))
+                  bslib::nav_panel(
+                    shiny::tagList(shiny::icon("hdd"), " Chemin local"),
+                    shiny::div(class = "mt-2",
+                      shiny::tags$div(
+                        class = "alert alert-info",
+                        shiny::icon("lightbulb"),
+                        " Pour des fichiers volumineux (> 30 Mo) déjà présents sur le serveur."
+                      ),
+                      shiny::textInput(ns("local_path"), "Chemin absolu",
+                                       placeholder = "/data/sample/file.bw"),
+                      shiny::selectInput(ns("local_track_type"), "Type de track",
+                                         choices = c("Auto-détecté" = "")),
+                      shiny::uiOutput(ns("local_format_hint")),
+                      shiny::selectInput(ns("local_mode"), "Mode d'import",
+                                         choices = c("Copier" = "copy", "Lien symbolique" = "link")),
+                      shiny::textInput(ns("local_notes"), "Notes (optionnel)"),
+                      shiny::actionButton(ns("btn_add_local"),
+                        shiny::tagList(shiny::icon("plus"), " Ajouter au registre"),
+                        class = "btn btn-primary w-100")
+                    )
+                  )
+                ),
+                shiny::uiOutput(ns("add_feedback"))
+              )
+            ),
+            shiny::column(7,
+              shiny::tags$div(
+                class = "rt-card",
+                shiny::tags$div(
+                  class = "rt-card-header",
+                  shiny::tags$span(class = "rt-card-icon", shiny::icon("check-circle")),
+                  shiny::tags$h5("Validation")
+                ),
+                shiny::uiOutput(ns("file_validation_panel"))
+              )
             )
           )
         )
       ),
 
       # ---- Onglet 2 : Formats & templates ----
-      bslib::nav_panel("Formats & templates",
-        shiny::br(),
-        shiny::fluidRow(
-          shiny::column(4,
-            shiny::selectInput(ns("fmt_selector"), "Format :",
-              choices = c(
-                "BED (annotations/features)" = "bed",
-                "BedGraph (signal texte)" = "bedgraph",
-                "BigWig (signal binaire)" = "bigwig",
-                "GTF/GFF (gènes)" = "gtf",
-                "narrowPeak (pics ChIP)" = "narrowpeak",
-                "BEDPE / Links" = "bedpe",
-                "Domains (TADs)" = "domains",
-                "Regions BED" = "regions",
-                "Lignes verticales" = "vlines",
-                "Lignes horizontales" = "hlines"
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("table"), " Formats & templates"),
+        shiny::div(class = "mt-3",
+          shiny::fluidRow(
+            shiny::column(4,
+              shiny::tags$div(
+                class = "rt-card",
+                shiny::tags$div(
+                  class = "rt-card-header",
+                  shiny::tags$span(class = "rt-card-icon", shiny::icon("file-code")),
+                  shiny::tags$h5("Format")
+                ),
+                shiny::selectInput(ns("fmt_selector"), NULL,
+                  choices = c(
+                    "BED (annotations/features)" = "bed",
+                    "BedGraph (signal texte)"     = "bedgraph",
+                    "BigWig (signal binaire)"     = "bigwig",
+                    "GTF/GFF (gènes)"             = "gtf",
+                    "narrowPeak (pics ChIP)"      = "narrowpeak",
+                    "BEDPE / Links"               = "bedpe",
+                    "Domains (TADs)"              = "domains",
+                    "Regions BED"                 = "regions",
+                    "Lignes verticales"           = "vlines",
+                    "Lignes horizontales"         = "hlines"
+                  )
+                ),
+                shiny::uiOutput(ns("fmt_dl_buttons")),
+                shiny::tags$hr(class = "divider"),
+                shiny::downloadButton(ns("dl_templates_zip"),
+                  shiny::tagList(shiny::icon("file-archive"), " Tous les templates (ZIP)"),
+                  class = "btn btn-secondary btn-sm w-100")
               )
             ),
-            shiny::uiOutput(ns("fmt_dl_buttons")),
-            shiny::hr(),
-            shiny::downloadButton(ns("dl_templates_zip"), "Télécharger tous les templates (ZIP)",
-                                  class = "btn btn-outline-secondary btn-sm w-100")
-          ),
-          shiny::column(8,
-            shiny::uiOutput(ns("fmt_help_panel"))
+            shiny::column(8,
+              shiny::tags$div(
+                class = "rt-card",
+                shiny::uiOutput(ns("fmt_help_panel"))
+              )
+            )
           )
         )
       ),
 
       # ---- Onglet 3 : Registre ----
-      bslib::nav_panel("Registre",
-        shiny::br(),
-        shiny::fluidRow(
-          shiny::column(12,
-            shiny::div(class = "d-flex gap-2 mb-3",
-              shiny::actionButton(ns("btn_refresh_registry"),
-                                  shiny::icon("sync"), " Actualiser",
-                                  class = "btn btn-sm btn-outline-secondary"),
-              shiny::actionButton(ns("btn_remove"),
-                                  shiny::icon("trash"), " Supprimer la sélection",
-                                  class = "btn btn-sm btn-outline-danger")
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("list-alt"), " Registre"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(
+            class = "rt-card",
+            shiny::tags$div(
+              class = "rt-card-header flex-between",
+              shiny::tags$div(
+                class = "flex-row gap-8",
+                shiny::tags$span(class = "rt-card-icon", shiny::icon("database")),
+                shiny::tags$h5("Fichiers enregistrés")
+              ),
+              shiny::tags$div(
+                class = "d-flex gap-2",
+                shiny::actionButton(ns("btn_refresh_registry"),
+                  shiny::tagList(shiny::icon("sync"), " Actualiser"),
+                  class = "btn btn-secondary btn-sm"),
+                shiny::actionButton(ns("btn_remove"),
+                  shiny::tagList(shiny::icon("trash"), " Supprimer"),
+                  class = "btn btn-danger btn-sm")
+              )
             ),
             DT::DTOutput(ns("registry_table"))
           )
@@ -116,12 +167,18 @@ mod_inputs_ui <- function(id) {
       ),
 
       # ---- Onglet 4 : Preview fichier ----
-      bslib::nav_panel("Preview fichier",
-        shiny::br(),
-        shiny::fluidRow(
-          shiny::column(12,
+      bslib::nav_panel(
+        shiny::tagList(shiny::icon("eye"), " Preview"),
+        shiny::div(class = "mt-3",
+          shiny::tags$div(
+            class = "rt-card",
+            shiny::tags$div(
+              class = "rt-card-header",
+              shiny::tags$span(class = "rt-card-icon", shiny::icon("file-alt")),
+              shiny::tags$h5("Aperçu du fichier")
+            ),
             shiny::uiOutput(ns("preview_selector_ui")),
-            shiny::hr(),
+            shiny::tags$hr(class = "divider"),
             shiny::uiOutput(ns("file_preview_panel"))
           )
         )
