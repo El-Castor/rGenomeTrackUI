@@ -169,3 +169,40 @@ test_that("add_file_to_registry writes both tsv and json registry files", {
   expect_true(file.exists(tsv_path))
   expect_true(file.exists(json_path))
 })
+
+# ---- detect_file_type : extensions utilisées par Parcourir auto-détection ---
+
+test_that("detect_file_type maps .bedpe to links", {
+  expect_equal(detect_file_type("interactions.bedpe"), "links")
+})
+
+test_that("detect_file_type maps .links to links", {
+  expect_equal(detect_file_type("arcs.links"), "links")
+})
+
+test_that("detect_file_type maps .cool to hic_matrix", {
+  expect_equal(detect_file_type("matrix.cool"), "hic_matrix")
+})
+
+test_that("detect_file_type maps .gff3 to gtf", {
+  expect_equal(detect_file_type("genes.gff3"), "gtf")
+})
+
+test_that("detect_file_type maps .bg to bedgraph", {
+  expect_equal(detect_file_type("signal.bg"), "bedgraph")
+})
+
+# ---- add_file_to_registry : auto-detect BigWig par extension .bigwig ---------
+test_that("add_file_to_registry auto-detects bigwig from .bigwig extension", {
+  tmp_file <- tempfile(fileext = ".bigwig")
+  writeBin(as.raw(c(0x26, 0xfc, 0x8f, 0x88, 0x00)), tmp_file)  # magic LE BigWig + padding
+  on.exit(unlink(tmp_file))
+
+  tmp_proj_dir <- withr::local_tempdir()
+  proj <- create_project("BwExtTest", genome_label = "hg38", root_dir = tmp_proj_dir)
+  add_file_to_registry(proj, tmp_file, mode = "copy", original_name = "sample.bigwig")
+  reg <- load_file_registry(proj)
+  expect_equal(nrow(reg), 1)
+  expect_equal(reg$file_type_detected[1], "bigwig")
+  expect_true(file.exists(reg$stored_path[1]))
+})

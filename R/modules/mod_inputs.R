@@ -62,14 +62,32 @@ mod_inputs_ui <- function(id) {
                     shiny::tagList(shiny::icon("hdd"), " Chemin local"),
                     shiny::div(class = "mt-2",
                       shiny::tags$div(
-                        class = "alert alert-info",
+                        class = "alert alert-info p-2 mb-2",
                         shiny::icon("lightbulb"),
-                        " Pour des fichiers volumineux (> 30 Mo) déjà présents sur le serveur."
+                        shiny::HTML(" <strong>Recommand&#233; pour les gros fichiers (&gt; 100 Mo)</strong> d&#233;j&#224; pr&#233;sents sur la machine (BigWig, HiC&#8230;). Permet <strong>Copier</strong> ou <strong>Lien symbolique</strong> pour &#233;viter la duplication.")
                       ),
-                      shiny::textInput(ns("local_path"), "Chemin absolu",
-                                       placeholder = "/data/sample/file.bw"),
+                      shiny::tags$label("Chemin absolu du fichier", class = "form-label"),
+                      shiny::div(
+                        class = "d-flex gap-2 align-items-end",
+                        shiny::div(
+                          class = "flex-grow-1",
+                          shiny::textInput(ns("local_path"), NULL,
+                                           placeholder = "/data/sample/file.bw",
+                                           width = "100%")
+                        ),
+                        shiny::div(
+                          class = "mb-3",
+                          shinyFiles::shinyFilesButton(
+                            id         = ns("browse_local_file"),
+                            label      = shiny::tagList(shiny::icon("folder-open"), " Parcourir\u2026"),
+                            title      = "S\u00e9lectionner un fichier local",
+                            multiple   = FALSE,
+                            buttonType = "outline-secondary"
+                          )
+                        )
+                      ),
                       shiny::selectInput(ns("local_track_type"), "Type de track",
-                                         choices = c("Auto-détecté" = "")),
+                                         choices = c("Auto-d\u00e9tect\u00e9" = "")),
                       shiny::uiOutput(ns("local_format_hint")),
                       shiny::selectInput(ns("local_mode"), "Mode d'import",
                                          choices = c("Copier" = "copy", "Lien symbolique" = "link")),
@@ -209,6 +227,59 @@ mod_inputs_server <- function(id, app_state, schema) {
       shiny::updateSelectInput(session, "upload_track_type", choices = choices)
       shiny::updateSelectInput(session, "local_track_type",  choices = choices)
     })
+
+    # ---- File browser shinyFiles pour Chemin local ----
+    # Racines de navigation (macOS/Linux, dirs non-existants filtrés)
+    browse_roots <- local({
+      candidates <- c(
+        Home      = normalizePath("~",           mustWork = FALSE),
+        Documents = normalizePath("~/Documents", mustWork = FALSE),
+        Desktop   = normalizePath("~/Desktop",   mustWork = FALSE),
+        Downloads = normalizePath("~/Downloads", mustWork = FALSE)
+      )
+      if (dir.exists("/Volumes")) candidates["Volumes"] <- "/Volumes"
+      candidates[vapply(candidates, dir.exists, logical(1))]
+    })
+
+    shinyFiles::shinyFileChoose(
+      input     = input,
+      id        = "browse_local_file",
+      roots     = browse_roots,
+      session   = session,
+      filetypes = c("bw", "bigwig", "bigWig", "bed", "bedgraph", "bg",
+                    "gtf", "gff", "gff3", "narrowPeak", "narrowpeak",
+                    "bedpe", "links", "cool", "mcool", "hic", "h5")
+    )
+
+    shiny::observeEvent(input$browse_local_file, {
+      if (is.integer(input$browse_local_file)) return()
+      parsed <- shinyFiles::parseFilePaths(browse_roots, input$browse_local_file)
+      if (nrow(parsed) > 0) {
+        selected_path <- as.character(parsed$datapath[[1]])
+        shiny::updateTextInput(session, "local_path", value = selected_path)
+
+        # Auto-detect track type from extension
+        detected <- detect_file_type(selected_path)
+        if (!is.null(detected) && detected != "unknown") {
+          shiny::updateSelectInput(session, "local_track_type", selected = detected)
+        }
+
+        # Notification avec taille du fichier
+        fsize     <- file.info(selected_path)$size
+        fsize_str <- if (!is.null(fsize) && !is.na(fsize)) {
+          if      (fsize >= 1073741824L) sprintf("%.1f Go", fsize / 1073741824)
+          else if (fsize >= 1048576L)    sprintf("%.1f Mo", fsize / 1048576)
+          else if (fsize >= 1024L)       sprintf("%.1f Ko", fsize / 1024)
+          else                           sprintf("%d o",    as.integer(fsize))
+        } else "taille inconnue"
+
+        shiny::showNotification(
+          sprintf("Fichier s\u00e9lectionn\u00e9 : %s (%s)", basename(selected_path), fsize_str),
+          type     = "message",
+          duration = 4
+        )
+      }
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     output$project_check <- shiny::renderUI({
       if (is.null(app_state$project_config)) {

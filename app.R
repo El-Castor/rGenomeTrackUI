@@ -58,6 +58,7 @@ suppressPackageStartupMessages({
   library(shiny)
   library(bslib)
   library(shinyjs)
+  library(shinyFiles)
   library(DT)
   library(jsonlite)
   library(yaml)
