@@ -21,6 +21,7 @@ projects/*/inputs/raw/
 projects/*/inputs/linked/
 projects/*/exports/
 projects/*/preview/
+projects/*/cache/
 
 # Keep structure
 !projects/.gitkeep

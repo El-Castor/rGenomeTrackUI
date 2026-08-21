@@ -64,11 +64,16 @@ suppressPackageStartupMessages({
   library(yaml)
 })
 
+if (!requireNamespace("colourpicker", quietly = TRUE)) {
+  stop("Package 'colourpicker' requis. Installer avec install.packages('colourpicker')")
+}
+
 # =============================================================================
 # Source all core modules
 # =============================================================================
 core_files <- list.files("R/core", pattern = "\\.R$", full.names = TRUE)
 for (f in core_files) source(f, local = FALSE)
+if (exists("ensure_app_data_dir", mode = "function")) ensure_app_data_dir()
 
 # Source all Shiny modules
 module_files <- list.files("R/modules", pattern = "\\.R$", full.names = TRUE)
@@ -139,9 +144,9 @@ ui <- bslib::page_navbar(
       shiny::tags$link(
         rel  = "stylesheet",
         type = "text/css",
-        href = "assets/styles.css?v=v04-dark-all"
+        href = "assets/styles.css?v=v07-run-progress"
       ),
-      shiny::tags$script(src = "assets/app.js")
+      shiny::tags$script(src = "assets/app.js?v=v06-upload-ready")
     )
   ),
 
@@ -258,21 +263,47 @@ server <- function(input, output, session) {
     project_config  = NULL,
     registry        = NULL,
     tracks          = list(),
+    selected_track_id = NULL,
     regions         = character(0),
     figure_settings = list(
       output_format        = "png",
-      width                = 38,
-      dpi                  = 150,
+      width                = 12,
+      dpi                  = 300,
       title                = "",
-      fontsize             = 14,
+      fontsize             = 8,
       track_label_fraction = 0.1,
       track_label_h_align  = "left",
       decreasing_x_axis    = FALSE,
+      signal_track_height  = 1.1,
+      annotation_track_height = 0.25,
+      annotation_labels      = FALSE,
+      gene_track_height    = 0.9,
+      gene_label_fontsize  = 6,
+      gene_rows            = 0,
+      spacer_before_genes_height = 0.05,
       renderer             = "pyGenomeTracks",
       output_basename      = "figure"
     ),
     current_run     = NULL,
     last_run_path   = NULL,
+    last_render     = NULL,
+    is_rendering    = FALSE,
+    prepared_run_ready = FALSE,
+    last_prepare_status = "idle",
+    is_preparing    = FALSE,
+    is_running      = FALSE,
+    cache           = list(
+      chromosome_summary = NULL,
+      gene_index         = NULL,
+      annotation_qc      = NULL,
+      signal_stats       = list(),
+      file_validation    = list(),
+      renderer_status    = NULL
+    ),
+    tracks_dirty    = FALSE,
+    region_dirty    = FALSE,
+    scaling_dirty   = FALSE,
+    config_dirty    = TRUE,
     projects_root   = PROJECTS_ROOT,
     nav_to          = NULL
   )

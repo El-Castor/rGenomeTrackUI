@@ -58,6 +58,43 @@ log_error <- function(run_path, message) {
   append_log(file.path(run_path, "logs", "stderr.log"), line)
 }
 
+log_prepare_perf <- function(project_config, run_id, step, duration_sec,
+                             region = "", n_tracks = 0L, n_signal_tracks = 0L,
+                             cache_hit = NA, status = "ok") {
+  project_path <- project_config$project_path %||% "."
+  path <- file.path(project_path, "logs", "prepare_run_perf.tsv")
+  ensure_dir(dirname(path))
+  row <- data.frame(
+    timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S"),
+    run_id = run_id %||% "",
+    step = step,
+    duration_sec = round(as.numeric(duration_sec), 3),
+    region = region %||% "",
+    n_tracks = as.integer(n_tracks %||% 0L),
+    n_signal_tracks = as.integer(n_signal_tracks %||% 0L),
+    cache_hit = if (is.na(cache_hit)) "" else as.character(isTRUE(cache_hit)),
+    status = status %||% "ok",
+    stringsAsFactors = FALSE
+  )
+  write.table(row, path, sep = "\t", row.names = FALSE, col.names = !file.exists(path),
+              append = file.exists(path), quote = FALSE)
+  invisible(path)
+}
+
+time_step <- function(label, expr, run_path = NULL, project_config = NULL,
+                      run_id = "", region = "", n_tracks = 0L,
+                      n_signal_tracks = 0L, cache_hit = NA, status = "ok") {
+  t0 <- Sys.time()
+  result <- force(expr)
+  dt <- round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 3)
+  line <- sprintf("[PERF] %s: %.3f sec", label, dt)
+  if (!is.null(run_path)) log_info(run_path, line) else message(line)
+  if (!is.null(project_config)) {
+    log_prepare_perf(project_config, run_id, label, dt, region, n_tracks, n_signal_tracks, cache_hit, status)
+  }
+  result
+}
+
 #' Write a structured debug log for a completed run
 #'
 #' Writes to `<run_path>/logs/run_debug.log` and appends a summary line

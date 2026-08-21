@@ -125,7 +125,8 @@ prepare_run_files <- function(project_config, run_path, tracks, schema, registry
   })
 
   # 1. tracks.ini
-  write_tracks_ini(enabled_tracks, schema, file.path(run_path, "config", "tracks.ini"))
+  write_tracks_ini(enabled_tracks, schema, file.path(run_path, "config", "tracks.ini"),
+                   regions = regions, figure_settings = figure_settings)
 
   # 2. tracks_config.json
   write_tracks_config(run_path, enabled_tracks)

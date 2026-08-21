@@ -73,6 +73,13 @@ r_packages:
     min_version: "2.1.0"
     description: "JavaScript utilities for Shiny"
 
+  - name: colourpicker
+    source: CRAN
+    conda_package: r-colourpicker
+    required: true
+    min_version: "1.3.0"
+    description: "Colour input widgets for Shiny track editing"
+
   - name: shinyFiles
     source: CRAN
     conda_package: r-shinyfiles

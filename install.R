@@ -135,6 +135,7 @@ cran_packages <- c(
   "shiny",          # Shiny web framework
   "bslib",          # Bootstrap theming
   "shinyjs",        # JS utilities for Shiny
+  "colourpicker",   # Color inputs for Shiny
   "shinyFiles",     # File browser for Shiny
   "DT",             # Interactive tables
   "jsonlite",       # JSON I/O

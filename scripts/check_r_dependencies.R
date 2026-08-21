@@ -224,7 +224,7 @@ n_fail <- sum(!all_results$ok)
 
 # Distinguish required failures from optional
 required_pkgs <- c(
-  "shiny", "bslib", "shinyjs", "shinyFiles", "DT",
+  "shiny", "bslib", "shinyjs", "colourpicker", "shinyFiles", "DT",
   "jsonlite", "yaml", "fs", "processx", "callr",
   "reticulate", "testthat", "BiocManager", "rGenomeTracks",
   "devtools", "remotes"

@@ -90,6 +90,45 @@
       var btn = document.getElementById(msg.id);
       if (btn) flashBtn(btn, msg.label || 'Done!');
     });
+
+    Shiny.addCustomMessageHandler('rt_upload_received', function (msg) {
+      var status = document.getElementById(msg.id);
+      if (!status) return;
+      status.innerHTML = '<i class="fa fa-check-circle" aria-hidden="true"></i> ' +
+        '<span><strong>Fichier prêt.</strong><br><small>Vous pouvez maintenant l\'ajouter au registre.</small></span>';
+      status.classList.add('is-active', 'is-ready');
+    });
+  }
+
+  /* --------------------------------------------------------------------------
+     File uploads: visible feedback from Finder selection until Shiny receives
+     the completed temporary file. Shiny's own progress bar remains the source
+     of truth for the percentage.
+     -------------------------------------------------------------------------- */
+  function initUploadFeedback() {
+    var input = document.getElementById('inputs-file_upload');
+    var status = document.getElementById('inputs-upload_status');
+    if (!input || !status || input.dataset.rtUploadFeedback === '1') return;
+    input.dataset.rtUploadFeedback = '1';
+
+    input.addEventListener('change', function () {
+      status.classList.remove('is-ready');
+      if (!input.files || !input.files.length) {
+        status.textContent = '';
+        status.classList.remove('is-active');
+        return;
+      }
+      var file = input.files[0];
+      var mb = file.size / (1024 * 1024);
+      var size = mb >= 1024 ? (mb / 1024).toFixed(1) + ' Go' : mb.toFixed(1) + ' Mo';
+      status.innerHTML = '<span class="rt-upload-spinner" aria-hidden="true"></span>' +
+        '<span><strong>Transfert en cours…</strong><br><small>' +
+        file.name.replace(/[&<>"']/g, function (c) {
+          return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+        }) + ' · ' + size + '</small></span>';
+      status.classList.add('is-active');
+    });
+
   }
 
   /* --------------------------------------------------------------------------
@@ -130,6 +169,9 @@
     document.querySelectorAll('.rt-path-block').forEach(function (pb) {
       pb.title = 'Click to copy';
     });
+    initUploadFeedback();
   });
+
+  $(document).on('shiny:connected', initUploadFeedback);
 
 })();

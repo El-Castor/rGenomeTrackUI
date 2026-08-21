@@ -120,7 +120,9 @@ mod_project_server <- function(id, app_state) {
         config              <- load_project(row$project_path)
         app_state$project_config <- config
         app_state$registry  <- load_file_registry(config)
-        app_state$tracks    <- list()
+        app_state$tracks    <- load_project_tracks(config)
+        app_state$selected_track_id <- NULL
+        message(sprintf("[PROJECT] Loaded %d tracks from project config.", length(app_state$tracks)))
         shiny::showNotification(sprintf("Projet '%s' ouvert.", config$project_name), type = "message")
         app_state$nav_to <- "inputs"
       }, error = function(e) {
@@ -146,6 +148,8 @@ mod_project_server <- function(id, app_state) {
         app_state$project_config <- config
         app_state$registry       <- load_file_registry(config)
         app_state$tracks         <- list()
+        app_state$selected_track_id <- NULL
+        save_project_tracks(config, app_state$tracks)
         output$create_feedback <- shiny::renderUI({
           shiny::div(class = "alert alert-success mt-2",
                      sprintf("Projet '%s' créé.", config$project_name))

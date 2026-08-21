@@ -453,9 +453,7 @@ mod_documentation_server <- function(id) {
           dom = "t",
           pageLength = 20,
           ordering = FALSE,
-          language = list(
-            url = "//cdn.datatables.net/plug-ins/1.13.1/i18n/fr-FR.json"
-          )
+          language = rt_dt_language()
         ),
         class = "table table-sm table-striped format-table"
       ) |>

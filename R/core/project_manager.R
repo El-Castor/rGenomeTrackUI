@@ -47,11 +47,14 @@ create_project <- function(project_name, genome_label, description = "", root_di
   # Create directory structure
   dirs <- c(
     project_path,
+    file.path(project_path, "config"),
     file.path(project_path, "inputs", "raw"),
     file.path(project_path, "inputs", "linked"),
     file.path(project_path, "templates"),
     file.path(project_path, "runs"),
-    file.path(project_path, "exports")
+    file.path(project_path, "exports"),
+    file.path(project_path, "cache"),
+    file.path(project_path, "logs")
   )
   for (d in dirs) ensure_dir(d)
 

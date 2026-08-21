@@ -131,7 +131,7 @@ run_dependency_check <- function() {
   }
 
   # Check critical R packages
-  required_pkgs <- c("shiny", "bslib", "DT", "jsonlite", "yaml", "processx", "shinyjs")
+  required_pkgs <- c("shiny", "bslib", "DT", "jsonlite", "yaml", "processx", "shinyjs", "colourpicker")
   missing_pkgs  <- required_pkgs[!vapply(required_pkgs, check_r_package, logical(1))]
   if (length(missing_pkgs) > 0) {
     messages <- c(messages, sprintf("Missing R packages: %s", paste(missing_pkgs, collapse=", ")))

@@ -94,6 +94,23 @@ test_that("validate_against_format_spec returns list with status/messages/previe
   expect_true("preview" %in% names(result))
 })
 
+test_that("la validation binaire utilise le nom original d'un upload Shiny", {
+  specs <- load_input_specs()
+  tmp <- tempfile() # Shiny fournit un datapath temporaire sans extension
+  con <- file(tmp, "wb")
+  writeBin(as.raw(c(0x26, 0xfc, 0x8f, 0x88)), con)
+  close(con)
+  on.exit(unlink(tmp), add = TRUE)
+
+  result <- validate_against_format_spec(
+    tmp, "bigwig", specs,
+    original_name = "signal.bigWig"
+  )
+
+  expect_equal(result$status, "ok")
+  expect_true(any(grepl("Signature BigWig valide", result$messages, fixed = TRUE)))
+})
+
 test_that("validate_against_format_spec handles missing file", {
   specs  <- load_input_specs(config_dir)
   result <- validate_against_format_spec("/nonexistent/path/file.bed", "bed", specs)

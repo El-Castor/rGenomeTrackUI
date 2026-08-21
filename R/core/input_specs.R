@@ -198,9 +198,12 @@ get_example_path <- function(format_id, examples_dir = "examples/input_files", s
 #'
 #' @param file_path Chemin du fichier à valider
 #' @param format_id Identifiant du format attendu
+#' @param original_name Nom original du fichier. Nécessaire pour les uploads
+#'   Shiny dont le chemin temporaire ne conserve pas l'extension.
 #' @param specs Liste de specs
 #' @return Liste avec status ("ok" / "warning" / "error"), messages et preview (5 premières lignes)
-validate_against_format_spec <- function(file_path, format_id, specs = NULL) {
+validate_against_format_spec <- function(file_path, format_id, specs = NULL,
+                                         original_name = NULL) {
   if (is.null(specs)) specs <- load_input_specs()
 
   result <- list(status = "ok", messages = c(), preview = NULL)
@@ -224,7 +227,12 @@ validate_against_format_spec <- function(file_path, format_id, specs = NULL) {
   }
 
   # 2. Vérification extension
-  fext <- tolower(tools::file_ext(file_path))
+  extension_source <- if (!is.null(original_name) && nzchar(trimws(original_name))) {
+    original_name
+  } else {
+    file_path
+  }
+  fext <- tolower(tools::file_ext(extension_source))
   valid_exts <- tolower(gsub("^\\.", "", spec$extensions %||% c()))
   if (length(valid_exts) > 0 && !fext %in% valid_exts) {
     result$status <- "warning"

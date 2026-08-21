@@ -2,6 +2,38 @@
 # mod_region_settings.R — Region & figure settings module
 # =============================================================================
 
+region_coordinate_to_bp <- function(value, unit = "bp") {
+  multiplier <- if (identical(tolower(unit %||% "bp"), "kb")) 1000 else 1
+  as.integer(round(as.numeric(value) * multiplier))
+}
+
+region_coordinate_from_bp <- function(value_bp, unit = "bp") {
+  divisor <- if (identical(tolower(unit %||% "bp"), "kb")) 1000 else 1
+  as.numeric(value_bp) / divisor
+}
+
+region_delete_input_id <- function(region) {
+  paste0("del_region_", digest::digest(as.character(region), algo = "xxhash32"))
+}
+
+gene_flank_bp <- function(choice, custom_value = 5000L) {
+  if (identical(as.character(choice %||% "0"), "custom")) {
+    value <- suppressWarnings(as.integer(custom_value %||% 5000L))
+  } else {
+    value <- suppressWarnings(as.integer(choice %||% 0L))
+  }
+  if (is.na(value)) value <- 0L
+  max(0L, value)
+}
+
+format_gene_flank <- function(value_bp) {
+  value_bp <- max(0L, as.integer(value_bp %||% 0L))
+  if (value_bp == 0L) return("aucune marge")
+  if (value_bp %% 1000000L == 0L) return(sprintf("%g Mb de chaque côté", value_bp / 1000000))
+  if (value_bp %% 1000L == 0L) return(sprintf("%g kb de chaque côté", value_bp / 1000))
+  sprintf("%s bp de chaque côté", format(value_bp, big.mark = "\u00a0"))
+}
+
 #' Region & Figure Settings UI
 #'
 #' @param id module namespace ID
@@ -53,6 +85,15 @@ mod_region_settings_ui <- function(id) {
                   # ---- Start / End ----
                   shiny::div(
                     class = "chrom-index-card",
+                    shiny::div(
+                      class = "d-flex justify-content-end align-items-center gap-2 mb-2",
+                      shiny::tags$small(class = "text-muted", "Unité des coordonnées"),
+                      shiny::selectInput(
+                        ns("guided_unit"), NULL,
+                        choices = c("Base pairs (bp)" = "bp", "Kilobases (kb)" = "kb"),
+                        selected = "bp", width = "170px"
+                      )
+                    ),
                     shiny::fluidRow(
                       shiny::column(6,
                         shiny::numericInput(ns("guided_start"), "D\u00e9but (bp)", value = 1L,
@@ -154,16 +195,16 @@ mod_region_settings_ui <- function(id) {
                              selected = "png"),
           shiny::fluidRow(
             shiny::column(6,
-              shiny::numericInput(ns("width"), "Largeur (cm)", value = 38, min = 5, max = 200)
+              shiny::numericInput(ns("width"), "Largeur (cm)", value = 12, min = 5, max = 200)
             ),
             shiny::column(6,
-              shiny::numericInput(ns("dpi"), "Résolution (DPI)", value = 150, min = 72, max = 600)
+              shiny::numericInput(ns("dpi"), "Résolution (DPI)", value = 300, min = 72, max = 600)
             )
           ),
           shiny::textInput(ns("title"), "Titre de la figure", placeholder = "ex: Locus GENE1"),
           shiny::fluidRow(
             shiny::column(6,
-              shiny::numericInput(ns("fontsize"), "Taille de police", value = 14, min = 6, max = 40)
+              shiny::numericInput(ns("fontsize"), "Taille de police", value = 8, min = 6, max = 40)
             ),
             shiny::column(6,
               shiny::numericInput(ns("track_label_fraction"), "Fraction étiquette",
@@ -173,6 +214,97 @@ mod_region_settings_ui <- function(id) {
           shiny::selectInput(ns("track_label_h_align"), "Alignement étiquettes",
                              choices = c("Gauche" = "left", "Centre" = "center", "Droite" = "right")),
           shiny::checkboxInput(ns("decreasing_x_axis"), "Axe X décroissant (brin –)", value = FALSE),
+          shiny::actionButton(ns("preset_publication_panel"),
+            shiny::tagList(shiny::icon("file-image"), " Profil panel publication"),
+            class = "btn btn-outline-primary btn-sm w-100 mb-2"),
+          shiny::tags$hr(class = "divider"),
+          shiny::tags$h6("Échelle d'affichage des signaux"),
+          shiny::div(class = "alert alert-info p-2",
+            shiny::icon("info-circle"),
+            " Pour comparer plusieurs conditions, une échelle Y commune est recommandée. L'autoscaling indépendant peut rendre un signal faible visuellement comparable à un signal fort."
+          ),
+          shiny::checkboxInput(ns("apply_shared_scale_to_signal_tracks"),
+                               "Appliquer aux tracks de signal", value = TRUE),
+          shiny::selectInput(ns("signal_scale_mode"), "Mode d'échelle des signaux",
+                             choices = c(
+                               "Échelle indépendante par track" = "auto_per_track",
+                               "Maximum global partagé" = "shared_global_max",
+                               "Maximum global partagé avec marge" = "shared_global_max_padded",
+                               "Quantile global partagé" = "shared_global_quantile",
+                               "Échelle manuelle" = "manual"
+                             ),
+                             selected = "shared_global_max_padded"),
+          shiny::div(class = "alert alert-secondary p-2 small",
+            shiny::HTML("<strong>shared_global_max_padded</strong> : meilleur choix pour éviter le clipping et comparer honnêtement les conditions.<br><strong>shared_global_quantile</strong> : utile pour mieux voir les petits signaux, mais peut tronquer les pics extrêmes.")
+          ),
+          shiny::fluidRow(
+            shiny::column(6,
+              shiny::numericInput(ns("shared_min_value"), "Valeur min commune",
+                                  value = 0, min = -1e9, max = 1e9, step = 1)
+            ),
+            shiny::column(6,
+              shiny::numericInput(ns("shared_quantile"), "Quantile global",
+                                  value = 0.99, min = 0.5, max = 1, step = 0.005)
+            )
+          ),
+          shiny::checkboxInput(ns("avoid_signal_clipping"),
+                               "Éviter la troncature des gros pics", value = TRUE),
+          shiny::numericInput(ns("signal_max_padding_factor"),
+                              "Marge au-dessus du max signal",
+                              value = 1.15, min = 1.0, max = 2.0, step = 0.05),
+          shiny::fluidRow(
+            shiny::column(6,
+              shiny::numericInput(ns("manual_min_value"), "Valeur min manuelle",
+                                  value = 0, min = -1e9, max = 1e9, step = 1)
+            ),
+            shiny::column(6,
+              shiny::numericInput(ns("manual_max_value"), "Valeur max manuelle",
+                                  value = 100, min = 0, max = 1e12, step = 1)
+            )
+          ),
+          shiny::tags$hr(class = "divider"),
+          shiny::tags$h6("Disposition des gènes"),
+          shiny::fluidRow(
+            shiny::column(6,
+              shiny::numericInput(ns("signal_track_height"), "Hauteur signaux",
+                                  value = 1.1, min = 0.5, max = 8, step = 0.1)
+            ),
+            shiny::column(6,
+              shiny::numericInput(ns("annotation_track_height"), "Hauteur BED/annotations",
+                                  value = 0.25, min = 0.2, max = 8, step = 0.05)
+            )
+          ),
+          shiny::checkboxInput(ns("insert_spacer_before_genes"),
+                               "Ajouter un espace avant les gènes", value = TRUE),
+          shiny::numericInput(ns("spacer_before_genes_height"),
+                              "Hauteur spacer avant gènes",
+                              value = 0.05, min = 0, max = 2, step = 0.05),
+          shiny::fluidRow(
+            shiny::column(4,
+              shiny::numericInput(ns("gene_track_height"), "Hauteur track gènes",
+                                  value = 0.9, min = 0.5, max = 10, step = 0.1)
+            ),
+            shiny::column(4,
+              shiny::numericInput(ns("gene_label_fontsize"), "Police labels gènes",
+                                  value = 6, min = 4, max = 24, step = 1)
+            ),
+            shiny::column(4,
+              shiny::numericInput(ns("gene_rows"), "Lignes de gènes (0 = automatique)",
+                                  value = 0, min = 0, max = 50, step = 1)
+            )
+          ),
+          shiny::fluidRow(
+            shiny::column(6,
+              shiny::selectInput(ns("gene_style"), "Gene style",
+                                 choices = c("UCSC", "flybase", "exonarrows", "tssarrow"),
+                                 selected = "UCSC")
+            ),
+            shiny::column(6,
+              shiny::selectInput(ns("gene_display"), "Gene display",
+                                 choices = c("stacked", "interleaved", "collapsed"),
+                                 selected = "stacked")
+            )
+          ),
           shiny::selectInput(ns("renderer"), "Renderer",
                              choices = c("pyGenomeTracks" = "pyGenomeTracks",
                                          "rGenomeTracks"  = "rGenomeTracks",
@@ -206,12 +338,29 @@ mod_region_settings_server <- function(id, app_state) {
       fs <- app_state$figure_settings
       if (!is.null(fs)) {
         shiny::updateSelectInput(session, "output_format", selected = fs$output_format %||% "png")
-        shiny::updateNumericInput(session, "width",    value = fs$width    %||% 38)
-        shiny::updateNumericInput(session, "dpi",      value = fs$dpi      %||% 150)
+        shiny::updateNumericInput(session, "width",    value = fs$width    %||% 12)
+        shiny::updateNumericInput(session, "dpi",      value = fs$dpi      %||% 300)
         shiny::updateTextInput(session, "title",       value = fs$title    %||% "")
-        shiny::updateNumericInput(session, "fontsize", value = fs$fontsize %||% 14)
+        shiny::updateNumericInput(session, "fontsize", value = fs$fontsize %||% 8)
         shiny::updateSelectInput(session, "renderer",  selected = fs$renderer %||% "pyGenomeTracks")
         shiny::updateTextInput(session, "output_basename", value = fs$output_basename %||% "figure")
+        shiny::updateCheckboxInput(session, "apply_shared_scale_to_signal_tracks", value = isTRUE(fs$apply_shared_scale_to_signal_tracks %||% TRUE))
+        shiny::updateSelectInput(session, "signal_scale_mode", selected = fs$signal_scale_mode %||% "shared_global_max_padded")
+        shiny::updateNumericInput(session, "shared_min_value", value = fs$shared_min_value %||% 0)
+        shiny::updateNumericInput(session, "shared_quantile", value = fs$shared_quantile %||% 0.99)
+        shiny::updateCheckboxInput(session, "avoid_signal_clipping", value = isTRUE(fs$avoid_signal_clipping %||% TRUE))
+        shiny::updateNumericInput(session, "signal_max_padding_factor", value = fs$signal_max_padding_factor %||% 1.15)
+        shiny::updateNumericInput(session, "manual_min_value", value = fs$manual_min_value %||% 0)
+        shiny::updateNumericInput(session, "manual_max_value", value = fs$manual_max_value %||% 100)
+        shiny::updateCheckboxInput(session, "insert_spacer_before_genes", value = isTRUE(fs$insert_spacer_before_genes %||% TRUE))
+        shiny::updateNumericInput(session, "signal_track_height", value = fs$signal_track_height %||% 1.1)
+        shiny::updateNumericInput(session, "annotation_track_height", value = fs$annotation_track_height %||% 0.25)
+        shiny::updateNumericInput(session, "spacer_before_genes_height", value = fs$spacer_before_genes_height %||% 0.05)
+        shiny::updateNumericInput(session, "gene_track_height", value = fs$gene_track_height %||% 0.9)
+        shiny::updateNumericInput(session, "gene_label_fontsize", value = fs$gene_label_fontsize %||% 6)
+        shiny::updateNumericInput(session, "gene_rows", value = fs$gene_rows %||% 0)
+        shiny::updateSelectInput(session, "gene_style", selected = fs$gene_style %||% "UCSC")
+        shiny::updateSelectInput(session, "gene_display", selected = fs$gene_display %||% "stacked")
       }
     })
 
@@ -221,6 +370,8 @@ mod_region_settings_server <- function(id, app_state) {
 
     # reactiveVal holding the last index result or NULL
     chrom_index_rv <- shiny::reactiveVal(NULL)
+    chrom_index_building_rv <- shiny::reactiveVal(FALSE)
+    last_auto_index_key_rv <- shiny::reactiveVal(NULL)
 
     # Helper: get file IDs from active tracks
     .active_file_ids <- function() {
@@ -229,6 +380,25 @@ mod_region_settings_server <- function(id, app_state) {
       ids <- vapply(trks, function(t) t$file_id %||% "", character(1L))
       ids <- ids[!is.na(ids) & nchar(ids) > 0L & ids != "NULL"]
       if (length(ids) == 0L) NULL else ids
+    }
+
+    .build_chrom_index <- function(proj, reg, notify = TRUE) {
+      if (isTRUE(chrom_index_building_rv())) return(invisible(NULL))
+      chrom_index_building_rv(TRUE)
+      on.exit(chrom_index_building_rv(FALSE), add = TRUE)
+      if (isTRUE(notify)) {
+        shiny::showNotification("Analyse des chromosomes en cours", id = "chrom_notif",
+                                duration = NULL, type = "message")
+        on.exit(shiny::removeNotification("chrom_notif"), add = TRUE)
+      }
+      active_ids <- .active_file_ids()
+      result <- build_project_chrom_index(
+        proj, reg,
+        active_file_ids = if (length(active_ids) > 0L) active_ids else NULL
+      )
+      chrom_index_rv(result)
+      save_chrom_index_cache(result, reg, proj)
+      result
     }
 
     # Auto-refresh index when project or registry changes
@@ -257,6 +427,24 @@ mod_region_settings_server <- function(id, app_state) {
           ))
           return()
         }
+      }
+
+      # A missing cache previously left the selector permanently empty until
+      # the user clicked the analysis button. Build it once automatically.
+      key <- paste(
+        proj$project_path %||% "",
+        paste(reg$file_id %||% character(0), collapse = "|"),
+        paste(reg$stored_path %||% character(0), collapse = "|"),
+        sep = "::"
+      )
+      if (!identical(shiny::isolate(last_auto_index_key_rv()), key)) {
+        last_auto_index_key_rv(key)
+        tryCatch(
+          .build_chrom_index(proj, reg, notify = TRUE),
+          error = function(e) shiny::showNotification(
+            sprintf("Erreur analyse : %s", e$message), type = "error", duration = 8
+          )
+        )
       }
     })
 
@@ -380,15 +568,38 @@ mod_region_settings_server <- function(id, app_state) {
       if (nrow(row) == 0L) return()
       chrom_len <- as.integer(row$length[1L])
       if (is.na(chrom_len) || chrom_len <= 0L) return()
-      cur_end <- input$guided_end %||% 100000L
-      new_end <- min(cur_end, chrom_len)
-      shiny::updateNumericInput(session, "guided_start", max = chrom_len - 1L)
-      shiny::updateNumericInput(session, "guided_end",   max = chrom_len, value = new_end)
+      unit <- input$guided_unit %||% "bp"
+      cur_end_bp <- region_coordinate_to_bp(input$guided_end %||% 100000L, unit)
+      new_end_bp <- min(cur_end_bp, chrom_len)
+      shiny::updateNumericInput(session, "guided_start",
+        max = region_coordinate_from_bp(chrom_len - 1L, unit))
+      shiny::updateNumericInput(session, "guided_end",
+        max = region_coordinate_from_bp(chrom_len, unit),
+        value = region_coordinate_from_bp(new_end_bp, unit))
     })
+
+    previous_guided_unit_rv <- shiny::reactiveVal("bp")
+    shiny::observeEvent(input$guided_unit, {
+      new_unit <- input$guided_unit %||% "bp"
+      old_unit <- previous_guided_unit_rv()
+      if (identical(new_unit, old_unit)) return()
+      start_bp <- region_coordinate_to_bp(shiny::isolate(input$guided_start %||% 1), old_unit)
+      end_bp <- region_coordinate_to_bp(shiny::isolate(input$guided_end %||% 100000), old_unit)
+      step <- if (identical(new_unit, "kb")) 0.001 else 1
+      minimum <- if (identical(new_unit, "kb")) 0.001 else 1
+      shiny::updateNumericInput(session, "guided_start",
+        label = sprintf("Début (%s)", new_unit),
+        value = region_coordinate_from_bp(start_bp, new_unit), min = minimum, step = step)
+      shiny::updateNumericInput(session, "guided_end",
+        label = sprintf("Fin (%s)", new_unit),
+        value = region_coordinate_from_bp(end_bp, new_unit), min = minimum, step = step)
+      previous_guided_unit_rv(new_unit)
+    }, ignoreInit = TRUE)
 
     # ---- Quick windows ----
     .apply_window <- function(size_bp) {
-      s   <- max(1L, as.integer(input$guided_start %||% 1L))
+      unit <- input$guided_unit %||% "bp"
+      s <- max(1L, region_coordinate_to_bp(input$guided_start %||% 1L, unit))
       res <- chrom_index_rv()
       ch  <- input$guided_chrom %||% ""
       chrom_len <- if (!is.null(res) && !is.null(res$index) && ch != "") {
@@ -397,7 +608,8 @@ mod_region_settings_server <- function(id, app_state) {
       } else NA_integer_
       e_raw <- s + as.integer(size_bp) - 1L
       e <- if (!is.na(chrom_len) && chrom_len > 0L) min(e_raw, chrom_len) else e_raw
-      shiny::updateNumericInput(session, "guided_end", value = e)
+      shiny::updateNumericInput(session, "guided_end",
+        value = region_coordinate_from_bp(e, unit))
     }
     shiny::observeEvent(input$win_50k,  { .apply_window(50000L)   })
     shiny::observeEvent(input$win_100k, { .apply_window(100000L)  })
@@ -408,8 +620,9 @@ mod_region_settings_server <- function(id, app_state) {
     # ---- Preview of the guided region ----
     output$guided_region_preview <- shiny::renderUI({
       ch <- input$guided_chrom %||% ""
-      s  <- as.integer(input$guided_start %||% 1L)
-      e  <- as.integer(input$guided_end   %||% 100000L)
+      unit <- input$guided_unit %||% "bp"
+      s <- region_coordinate_to_bp(input$guided_start %||% 1L, unit)
+      e <- region_coordinate_to_bp(input$guided_end %||% 100000L, unit)
       if (nchar(ch) == 0L || is.na(s) || is.na(e)) return(NULL)
       if (s >= e) {
         return(shiny::div(class = "alert alert-danger p-1 small mt-1",
@@ -449,8 +662,9 @@ mod_region_settings_server <- function(id, app_state) {
     # ---- Add guided region ----
     shiny::observeEvent(input$btn_add_guided_region, {
       ch <- input$guided_chrom %||% ""
-      s  <- as.integer(input$guided_start %||% 1L)
-      e  <- as.integer(input$guided_end   %||% 100000L)
+      unit <- input$guided_unit %||% "bp"
+      s <- region_coordinate_to_bp(input$guided_start %||% 1L, unit)
+      e <- region_coordinate_to_bp(input$guided_end %||% 100000L, unit)
       if (nchar(ch) == 0L) {
         shiny::showNotification("S\u00e9lectionnez un chromosome.", type = "warning"); return()
       }
@@ -606,19 +820,16 @@ mod_region_settings_server <- function(id, app_state) {
         return(invisible(NULL))
       }
       choices_vec <- make_gene_selectize_choices(gi)
-      choices_data <- make_gene_selectize_data(gi)
       message("[GeneSelect] update selectize with ", length(choices_vec), " choices")
       message("[GeneSelect] first labels: ", paste(head(names(choices_vec), 10), collapse = " | "))
       message("[GeneSelect] first values: ", paste(head(unname(choices_vec), 10), collapse = " | "))
       shiny::updateSelectizeInput(session, "gene_picker_sel",
-        choices = choices_data, selected = character(0), server = TRUE,
+        choices = choices_vec, selected = character(0), server = TRUE,
         options = list(
-          placeholder = "Tapez un ID ou nom de gène...",
+          placeholder = "Tapez un identifiant, ex. BdiBd21-3.1G0000100.v1.2",
           maxOptions = 100L,
           create = FALSE,
-          valueField = "value",
-          labelField = "label",
-          searchField = c("label", "value", "search_blob")
+          searchField = c("label", "value")
         ))
       message("[GeneSelect] updateSelectizeInput done with ", length(choices_vec), " choices.")
       invisible(NULL)
@@ -679,7 +890,21 @@ mod_region_settings_server <- function(id, app_state) {
         )
       }
 
+      gene_examples <- if (!is.null(gi) && nrow(gi) > 0L) {
+        example_ids <- unique(as.character(gi$gene_id))
+        example_ids <- example_ids[!is.na(example_ids) & nzchar(example_ids)]
+        shiny::div(
+          class = "alert alert-info p-2 mb-2 small",
+          shiny::tags$strong("Identifiants trouv\u00e9s dans ce GTF : "),
+          paste(utils::head(example_ids, 5L), collapse = ", "),
+          shiny::tags$br(),
+          shiny::tags$span(class = "text-muted",
+            "Recherche par gene_id, gene_name, locus_tag ou alias.")
+        )
+      } else NULL
+
       gene_picker_body <- shiny::tagList(
+        gene_examples,
         shiny::selectizeInput(
           ns("gene_picker_sel"),
           "Choisir un g\u00e8ne",
@@ -688,23 +913,35 @@ mod_region_settings_server <- function(id, app_state) {
           options  = list(
             maxOptions  = 100L,
             create      = FALSE,
-            valueField  = "value",
-            labelField  = "label",
-            searchField = c("label", "value", "search_blob"),
-            placeholder = "Tapez un ID ou nom de g\u00e8ne..."
+            searchField = c("label", "value"),
+            placeholder = "Tapez un identifiant de g\u00e8ne..."
           )
         ),
-        shiny::selectInput(ns("gene_flank"), "Flanquement",
-          choices  = c("1 kb" = 1000, "5 kb" = 5000, "10 kb" = 10000,
-                       "50 kb" = 50000, "100 kb" = 100000,
-                       "Personnalisé" = "custom"),
-          selected = 5000
+        shiny::selectInput(ns("gene_flank"), "Marge autour du gène (de chaque côté)",
+          choices  = c(
+            "Aucune marge — gène uniquement" = 0,
+            "1 kb avant + 1 kb après" = 1000,
+            "5 kb avant + 5 kb après" = 5000,
+            "10 kb avant + 10 kb après" = 10000,
+            "50 kb avant + 50 kb après" = 50000,
+            "100 kb avant + 100 kb après" = 100000,
+            "Saisir une autre valeur…" = "custom"
+          ),
+          selected = 0
         ),
-        shiny::numericInput(ns("gene_flank_custom"),
-          "Flanquement personnalisé (bp)",
-          value = 5000L, min = 1L, max = 50000000L, step = 100L),
+        shiny::conditionalPanel(
+          condition = sprintf("input['%s'] === 'custom'", ns("gene_flank")),
+          shiny::numericInput(ns("gene_flank_custom"),
+            "Marge personnalisée de chaque côté (bp)",
+            value = 5000L, min = 0L, max = 50000000L, step = 100L)
+        ),
+        shiny::tags$small(
+          class = "text-muted d-block mb-2",
+          "La marge est ajoutée avant le début et après la fin du gène."
+        ),
+        shiny::uiOutput(ns("gene_region_preview")),
         shiny::actionButton(ns("btn_add_gene_region"),
-          shiny::tagList(shiny::icon("plus"), " Ajouter r\u00e9gion autour du g\u00e8ne"),
+          shiny::tagList(shiny::icon("plus"), " Ajouter la r\u00e9gion affich\u00e9e"),
           class = "btn btn-outline-primary btn-sm w-100 mt-1")
       )
 
@@ -733,6 +970,34 @@ mod_region_settings_server <- function(id, app_state) {
       message("[GeneSelect] selected value: ", paste(input$gene_picker_sel, collapse = ", "))
     }, ignoreInit = TRUE)
 
+    output$gene_region_preview <- shiny::renderUI({
+      gi  <- gene_index_rv()
+      sel <- input$gene_picker_sel %||% ""
+      if (is.null(gi) || nrow(gi) == 0L || length(sel) == 0L || identical(sel, "")) {
+        return(shiny::div(
+          class = "alert alert-secondary p-2 mb-2 small",
+          "Sélectionnez un gène pour afficher les coordonnées qui seront ajoutées."
+        ))
+      }
+      row <- resolve_gene_selection(gi, sel)
+      if (is.null(row) || nrow(row) != 1L) return(NULL)
+
+      flank <- gene_flank_bp(input$gene_flank, input$gene_flank_custom)
+      ci <- chrom_index_rv()
+      chrom_index <- if (!is.null(ci)) ci$index else NULL
+      final_region <- gene_region_string(row, flank = flank, chrom_index = chrom_index)
+      gene_region <- sprintf("%s:%d-%d", row$chrom[1L], row$start[1L], row$end[1L])
+
+      shiny::div(
+        class = "alert alert-info p-2 mb-2 small",
+        shiny::tags$strong("Région qui sera ajoutée : "),
+        shiny::tags$code(final_region),
+        shiny::tags$br(),
+        shiny::tags$span(class = "text-muted",
+          sprintf("Gène %s ; %s.", gene_region, format_gene_flank(flank)))
+      )
+    })
+
     shiny::observeEvent(input$btn_add_gene_region, {
       gi  <- gene_index_rv()
       sel <- input$gene_picker_sel %||% ""
@@ -742,19 +1007,15 @@ mod_region_settings_server <- function(id, app_state) {
           type = "error", duration = 7)
         return()
       }
-      row <- gi[gi$gene_key == sel, , drop = FALSE]
-      if (nrow(row) != 1L) {
+      row <- resolve_gene_selection(gi, sel)
+      if (is.null(row) || nrow(row) != 1L) {
         shiny::showNotification(
           sprintf("Gène introuvable dans l’index : %s", paste(sel, collapse = ", ")),
           type = "error", duration = 8)
         message("[GeneSelect] selected key not found: ", paste(sel, collapse = ", "))
         return()
       }
-      flank <- if (identical(input$gene_flank, "custom")) {
-        max(1L, as.integer(input$gene_flank_custom %||% 5000L))
-      } else {
-        as.integer(input$gene_flank %||% 5000L)
-      }
+      flank <- gene_flank_bp(input$gene_flank, input$gene_flank_custom)
       ci  <- chrom_index_rv()
       chrom_index <- if (!is.null(ci)) ci$index else NULL
       if (is.null(chrom_index) || !row$chrom[1L] %in% chrom_index$chrom) {
@@ -844,9 +1105,10 @@ mod_region_settings_server <- function(id, app_state) {
       if (length(regions) == 0)
         return(shiny::p(class = "text-muted", shiny::em("Aucune région sélectionnée.")))
       items <- lapply(seq_along(regions), function(i) {
+        delete_id <- region_delete_input_id(regions[[i]])
         shiny::tags$li(
           shiny::code(regions[i]),
-          shiny::actionLink(ns(paste0("del_region_", i)),
+          shiny::actionLink(ns(delete_id),
             shiny::icon("times"),
             class = "ms-2 text-danger",
             style = "font-size:0.9em;")
@@ -858,19 +1120,37 @@ mod_region_settings_server <- function(id, app_state) {
     # Suppression individuelle d'une région
     shiny::observe({
       regions <- app_state$regions %||% character(0)
-      for (i in seq_along(regions)) {
+      for (region_value in regions) {
         local({
-          idx <- i
-          shiny::observeEvent(input[[paste0("del_region_", idx)]], {
+          region_to_delete <- region_value
+          delete_id <- region_delete_input_id(region_to_delete)
+          shiny::observeEvent(input[[delete_id]], {
             regs <- app_state$regions %||% character(0)
-            if (idx <= length(regs)) app_state$regions <- regs[-idx]
-          }, ignoreNULL = TRUE, once = TRUE)
+            app_state$regions <- regs[regs != region_to_delete]
+          }, ignoreInit = TRUE, ignoreNULL = TRUE, once = TRUE)
         })
       }
     })
 
     shiny::observeEvent(input$btn_clear_regions, {
       app_state$regions <- character(0)
+    })
+
+    shiny::observeEvent(input$preset_publication_panel, {
+      shiny::updateNumericInput(session, "width", value = 12)
+      shiny::updateNumericInput(session, "dpi", value = 300)
+      shiny::updateNumericInput(session, "fontsize", value = 8)
+      shiny::updateNumericInput(session, "signal_track_height", value = 1.1)
+      shiny::updateNumericInput(session, "annotation_track_height", value = 0.25)
+      shiny::updateNumericInput(session, "spacer_before_genes_height", value = 0.05)
+      shiny::updateNumericInput(session, "gene_track_height", value = 0.9)
+      shiny::updateNumericInput(session, "gene_label_fontsize", value = 6)
+      shiny::updateNumericInput(session, "gene_rows", value = 0)
+      shiny::updateSelectInput(session, "signal_scale_mode", selected = "shared_global_max_padded")
+      shiny::showNotification(
+        "Profil publication appliqué. Cliquez sur Enregistrer les paramètres.",
+        type = "message", duration = 6
+      )
     })
 
     shiny::observeEvent(input$btn_save_settings, {
@@ -883,9 +1163,33 @@ mod_region_settings_server <- function(id, app_state) {
         track_label_fraction = input$track_label_fraction,
         track_label_h_align  = input$track_label_h_align,
         decreasing_x_axis    = isTRUE(input$decreasing_x_axis),
+        apply_shared_scale_to_signal_tracks = isTRUE(input$apply_shared_scale_to_signal_tracks),
+        signal_scale_mode     = input$signal_scale_mode %||% "shared_global_max_padded",
+        shared_min_value      = input$shared_min_value %||% 0,
+        shared_quantile       = input$shared_quantile %||% 0.99,
+        avoid_signal_clipping = isTRUE(input$avoid_signal_clipping),
+        signal_max_padding_factor = input$signal_max_padding_factor %||% 1.15,
+        manual_min_value      = input$manual_min_value %||% 0,
+        manual_max_value      = input$manual_max_value %||% 100,
+        insert_spacer_before_genes = isTRUE(input$insert_spacer_before_genes),
+        signal_track_height   = input$signal_track_height %||% 1.1,
+        annotation_track_height = input$annotation_track_height %||% 0.25,
+        annotation_labels      = FALSE,
+        spacer_before_genes_height = input$spacer_before_genes_height %||% 0.05,
+        gene_track_height     = input$gene_track_height %||% 0.9,
+        gene_label_fontsize   = input$gene_label_fontsize %||% 6,
+        gene_rows             = input$gene_rows %||% 0,
+        gene_style            = input$gene_style %||% "UCSC",
+        gene_display          = input$gene_display %||% "stacked",
         renderer             = input$renderer,
         output_basename      = input$output_basename %||% "figure"
       )
+      app_state$prepared_config <- NULL
+      app_state$run_command <- NULL
+      app_state$prepared_run_ready <- FALSE
+      app_state$last_prepare_status <- "invalidated"
+      app_state$scaling_dirty <- TRUE
+      app_state$config_dirty <- TRUE
       shiny::showNotification("Paramètres enregistrés.", type = "message")
     })
   })

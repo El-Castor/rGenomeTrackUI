@@ -24,7 +24,7 @@ tracks:
         description: "Track title displayed on the left"
       height:
         type: numeric
-        default: 3
+        default: 1.1
         min: 0.5
         max: 20
         description: "Track height in cm"
@@ -32,6 +32,22 @@ tracks:
         type: color
         default: "#1f77b4"
         description: "Fill color"
+      track_group:
+        type: select
+        choices: ["ATAC-seq", "RNA-seq", "WGBS", "ChIP-seq", "Custom"]
+        default: "ATAC-seq"
+        description: "Signal group used for shared visual scaling"
+      scale_mode:
+        type: select
+        choices: ["independent", "shared_by_group", "robust_shared_by_group", "manual"]
+        default: "robust_shared_by_group"
+        description: "For comparing samples, use shared or robust shared scale by group"
+      robust_percentile:
+        type: numeric
+        default: 99
+        min: 90
+        max: 100
+        description: "Percentile used for robust shared scale"
       alpha:
         type: numeric
         default: 1
@@ -96,8 +112,8 @@ tracks:
         default: ""
       height:
         type: numeric
-        default: 3
-        min: 0.5
+        default: 0.25
+        min: 0.2
         max: 20
       color:
         type: color
@@ -137,7 +153,7 @@ tracks:
       gene_rows:
         type: numeric
         default: 0
-        description: "Number of gene rows (0 = auto)"
+        description: "Maximum number of annotation rows (0 = automatic)"
       arrowhead_included:
         type: boolean
         default: false
@@ -150,7 +166,7 @@ tracks:
   gtf:
     label: "GTF/GFF genes"
     file_required: true
-    accepted_extensions: [".gtf", ".gtf.gz", ".gff", ".gff3", ".gff.gz"]
+    accepted_extensions: [".gtf", ".gtf.gz", ".gff", ".gff3", ".gff.gz", ".bed12"]
     pygenometracks_file_type: "gtf"
     rgenometracks_function: "track_gtf"
     params:
@@ -159,12 +175,36 @@ tracks:
         default: "Genes"
       height:
         type: numeric
-        default: 5
-        min: 1
+        default: 0.9
+        min: 0.5
         max: 30
+      annotation_display_mode:
+        type: select
+        choices: ["Gene blocks", "Transcript/exon model"]
+        default: "Transcript/exon model"
+        description: "Gene blocks uses gene features only; transcript/exon model uses full annotation when available"
+      annotation_source_format:
+        type: select
+        choices: ["Auto", "GFF3", "GTF", "BED12"]
+        default: "Auto"
+        description: "Annotation source format. Auto detects from file extension."
+      annotation_render_format:
+        type: select
+        choices: ["BED12", "GTF"]
+        default: "BED12"
+        description: "Intermediate format used for pyGenomeTracks gene model rendering"
+      display_structure_from:
+        type: select
+        choices: ["exon", "CDS"]
+        default: "exon"
+        description: "Use exon features when available; CDS can be used as display blocks when exons are absent"
+      use_CDS_as_exon_blocks:
+        type: boolean
+        default: true
+        description: "When no exon features are detected, display CDS blocks connected by introns"
       style:
         type: select
-        choices: ["UCSC", "flybase", "tssarrow"]
+        choices: ["UCSC", "flybase", "exonarrows", "tssarrow"]
         default: "UCSC"
         description: "Gene model drawing style"
       display:
@@ -195,8 +235,37 @@ tracks:
         type: boolean
         default: false
         description: "Merge all transcripts into one model"
+      merge_overlapping_exons:
+        type: boolean
+        default: true
+        description: "Merge overlapping exon/CDS blocks in the rendered model"
+      gene_rows:
+        type: numeric
+        default: 10
+        min: 0
+        max: 200
+        description: "Maximum gene rows for stacked/interleaved display"
+      arrow_interval:
+        type: numeric
+        default: 2
+        min: 1
+        max: 100
+        description: "Arrow interval for strand direction"
+      arrowhead_included:
+        type: boolean
+        default: true
+        description: "Show arrowheads for strand direction"
+      fontsize:
+        type: numeric
+        default: 8
+        min: 4
+        max: 24
+      color_backbone:
+        type: color
+        default: "black"
       prefered_name:
-        type: text
+        type: select
+        choices: ["Name", "ID", "gene_id", "transcript_id", "gene_name"]
         default: "gene_name"
         description: "GTF attribute to use as label"
       orientation:
@@ -223,6 +292,19 @@ tracks:
       color:
         type: color
         default: "#1f77b4"
+      track_group:
+        type: select
+        choices: ["ATAC-seq", "RNA-seq", "WGBS", "ChIP-seq", "Custom"]
+        default: "ATAC-seq"
+      scale_mode:
+        type: select
+        choices: ["independent", "shared_by_group", "robust_shared_by_group", "manual"]
+        default: "robust_shared_by_group"
+      robust_percentile:
+        type: numeric
+        default: 99
+        min: 90
+        max: 100
       alpha:
         type: numeric
         default: 1
@@ -571,11 +653,11 @@ tracks:
 # Global pyGenomeTracks figure parameters
 # ---------------------------------------------------------------------------
 figure_defaults:
-  width: 38
+  width: 12
   height: null          # auto
-  dpi: 150
+  dpi: 300
   title: ""
-  fontsize: 14
+  fontsize: 8
   track_label_fraction: 0.1
   track_label_h_align: "left"
   decreasing_x_axis: false

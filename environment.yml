@@ -43,6 +43,7 @@ dependencies:
   - r-shiny>=1.7                   # Shiny web framework
   - r-bslib>=0.5                   # Bootstrap theming for Shiny
   - r-shinyjs>=2.1                 # JavaScript utilities for Shiny
+  - r-colourpicker>=1.3            # Colour inputs for Shiny track builder
   - r-shinyfiles>=0.9              # File system access for Shiny
   - r-dt>=0.27                     # Interactive DataTables
 

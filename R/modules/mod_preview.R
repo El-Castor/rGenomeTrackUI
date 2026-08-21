@@ -228,8 +228,10 @@ mod_preview_server <- function(id, app_state, schema) {
     # ---- Previews ----
     output$ini_preview <- shiny::renderText({
       enabled <- resolve_tracks()
+      regions <- app_state$regions %||% character(0)
+      fs <- app_state$figure_settings %||% list()
       if (length(enabled) == 0) return("# Aucune track activée.")
-      tryCatch(generate_tracks_ini(enabled, schema), error = function(e) paste("Erreur:", e$message))
+      tryCatch(generate_tracks_ini(enabled, schema, regions = regions, figure_settings = fs), error = function(e) paste("Erreur:", e$message))
     })
 
     output$r_script_preview <- shiny::renderText({
@@ -265,8 +267,10 @@ mod_preview_server <- function(id, app_state, schema) {
       filename = function() "tracks.ini",
       content  = function(file) {
         enabled <- resolve_tracks()
+        regions <- app_state$regions %||% character(0)
+        fs <- app_state$figure_settings %||% list()
         txt <- if (length(enabled) == 0) "# Aucune track activée."
-               else tryCatch(generate_tracks_ini(enabled, schema), error = function(e) paste("Erreur:", e$message))
+               else tryCatch(generate_tracks_ini(enabled, schema, regions = regions, figure_settings = fs), error = function(e) paste("Erreur:", e$message))
         writeLines(txt, file)
       }
     )

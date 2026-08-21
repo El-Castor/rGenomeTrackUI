@@ -49,6 +49,12 @@ mod_inputs_ui <- function(id) {
                                        accept = c(".bw", ".bigwig", ".bed", ".bedgraph", ".bg",
                                                   ".gtf", ".gff", ".gff3", ".narrowPeak",
                                                   ".bedpe", ".links")),
+                      shiny::div(
+                        id = ns("upload_status"),
+                        class = "rt-upload-status",
+                        role = "status",
+                        `aria-live` = "polite"
+                      ),
                       shiny::selectInput(ns("upload_track_type"), "Type de track",
                                          choices = c("Auto-détecté" = "")),
                       shiny::uiOutput(ns("upload_format_hint")),
@@ -291,10 +297,14 @@ mod_inputs_server <- function(id, app_state, schema) {
       }
     })
 
-    # Désactiver le bouton d'ajout si pas de projet
+    # Le bouton upload ne devient actif qu'après confirmation par le serveur
+    # que le transfert Shiny est terminé et que le fichier temporaire existe.
     shiny::observe({
       has_project <- !is.null(app_state$project_config)
-      shinyjs::toggleState("btn_add_upload", condition = has_project)
+      f <- input$file_upload
+      upload_ready <- has_project && !is.null(f) && nrow(f) > 0 &&
+        file.exists(f$datapath[[1]])
+      shinyjs::toggleState("btn_add_upload", condition = upload_ready)
       shinyjs::toggleState("btn_add_local",  condition = has_project)
     })
 
@@ -355,13 +365,28 @@ mod_inputs_server <- function(id, app_state, schema) {
     # ---- Panel de validation de fichier ----
     pending_file <- shiny::reactiveVal(NULL)  # list(path, name, track_type)
 
-    shiny::observe({
+    shiny::observeEvent(input$file_upload, {
       f <- input$file_upload
-      if (!is.null(f)) {
-        pending_file(list(path = f$datapath, name = f$name,
-                          track_type = input$upload_track_type))
+      shiny::req(!is.null(f), nrow(f) > 0)
+      selected_type <- input$upload_track_type %||% ""
+      if (!nzchar(selected_type)) {
+        detected_type <- file_type_to_track_type(detect_file_type(f$name[[1]]))
+        if (!is.null(detected_type) && !identical(detected_type, "unknown")) {
+          selected_type <- detected_type
+          shiny::updateSelectInput(session, "upload_track_type", selected = detected_type)
+        }
       }
-    })
+      message(sprintf("[Inputs] Upload received: name=%s size=%s temp=%s",
+                      f$name[[1]], f$size[[1]], f$datapath[[1]]))
+      pending_file(list(path = f$datapath[[1]], name = f$name[[1]],
+                        track_type = selected_type))
+      add_result(NULL)
+      session$sendCustomMessage("rt_upload_received", list(
+        id = ns("upload_status"),
+        name = f$name[[1]],
+        size = f$size[[1]]
+      ))
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
     shiny::observe({
       p <- trimws(input$local_path %||% "")
       tt <- input$local_track_type %||% ""
@@ -381,8 +406,28 @@ mod_inputs_server <- function(id, app_state, schema) {
       fmts <- if (!is.null(tt) && nchar(tt) > 0) get_formats_for_track_type(tt, specs) else c()
       fmt_id <- if (length(fmts) > 0) fmts[1] else NULL
 
+      # Le chemin temporaire Shiny n'est pas une source fiable pour le format.
+      # En cas de retard du selectInput, utiliser le nom original et surtout ne
+      # jamais envoyer un fichier binaire dans readLines().
+      detected_format <- detect_file_type(pf$name)
+      if (is.null(fmt_id) && detected_format %in% names(specs)) {
+        fmt_id <- detected_format
+      }
+      original_ext <- tolower(tools::file_ext(pf$name %||% ""))
+      is_known_binary <- original_ext %in% c("bw", "bigwig", "cool", "mcool", "hic", "h5") ||
+        (!is.null(fmt_id) && isTRUE(specs[[fmt_id]]$binary))
+
       val <- if (!is.null(fmt_id)) {
-        validate_against_format_spec(pf$path, fmt_id, specs)
+        validate_against_format_spec(
+          pf$path, fmt_id, specs,
+          original_name = pf$name
+        )
+      } else if (is_known_binary) {
+        list(
+          status = "warning",
+          messages = "Fichier binaire détecté — aperçu texte désactivé.",
+          preview = NULL
+        )
       } else {
         list(status = "warning",
              messages = "Type de track non sélectionné — validation de format ignorée.",
@@ -447,9 +492,7 @@ mod_inputs_server <- function(id, app_state, schema) {
       reg[, cols, drop = FALSE]
     }, selection = "single",
        options = list(pageLength = 15, scrollX = TRUE, dom = "tip",
-                      language = list(
-                        url = "//cdn.datatables.net/plug-ins/1.13.1/i18n/fr-FR.json"
-                      )))
+                      language = rt_dt_language()))
 
     shiny::observeEvent(input$registry_table_rows_selected, {
       shinyjs::enable("btn_remove")
@@ -579,7 +622,7 @@ mod_inputs_server <- function(id, app_state, schema) {
         original_name = f$name,
         source_type   = "upload"
       )
-    }, ignoreNULL = FALSE)
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     shiny::observeEvent(input$btn_add_local, {
       path <- trimws(input$local_path %||% "")

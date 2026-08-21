@@ -90,3 +90,25 @@ test_that("Aucun module n'a de chemin /preview codé en dur", {
       label = sprintf("%s: contient un chemin /preview codé en dur", basename(f)))
   }
 })
+
+test_that("DataTables ne dépend pas d'un fichier de langue Ajax distant", {
+  source_files <- c(
+    list.files(modules_dir, pattern = "\\.R$", full.names = TRUE),
+    list.files(file.path("..", "..", "R", "core"), pattern = "\\.R$", full.names = TRUE)
+  )
+  text <- paste(vapply(source_files, function(path) {
+    paste(readLines(path, warn = FALSE), collapse = "\n")
+  }, character(1)), collapse = "\n")
+
+  expect_false(grepl("cdn\\.datatables\\.net", text))
+  expect_false(grepl("language\\s*=\\s*list\\s*\\(\\s*url\\s*=", text, perl = TRUE))
+})
+
+test_that("le fallback de validation upload protège les fichiers binaires", {
+  inputs_path <- file.path(modules_dir, "mod_inputs.R")
+  text <- paste(readLines(inputs_path, warn = FALSE), collapse = "\n")
+
+  expect_match(text, "is_known_binary")
+  expect_match(text, "else if \\(is_known_binary\\)")
+  expect_match(text, "detect_file_type\\(pf\\$name\\)")
+})

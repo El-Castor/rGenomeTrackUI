@@ -375,3 +375,23 @@ dep_item_ui <- function(label, ok, detail = NULL) {
       shiny::tags$span(class = "dep-ver", detail)
   )
 }
+#' French labels for DT without a runtime CDN request
+#'
+#' Supplying `language$url` makes DataTables issue an Ajax request.  Besides
+#' making the UI depend on internet access, a failed request is reported as a
+#' misleading "DataTables Ajax error".  Keep the small set of labels used by
+#' the application local instead.
+rt_dt_language <- function() {
+  list(
+    emptyTable = "Aucune donnée disponible",
+    info = "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+    infoEmpty = "Affichage de 0 à 0 sur 0 entrée",
+    infoFiltered = "(filtré de _MAX_ entrées au total)",
+    lengthMenu = "Afficher _MENU_ entrées",
+    loadingRecords = "Chargement…",
+    processing = "Traitement…",
+    search = "Rechercher :",
+    zeroRecords = "Aucun résultat trouvé",
+    paginate = list(first = "Premier", last = "Dernier", `next` = "Suivant", previous = "Précédent")
+  )
+}
