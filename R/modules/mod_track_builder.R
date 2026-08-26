@@ -2,6 +2,10 @@
 # mod_track_builder.R — Track configuration module
 # =============================================================================
 
+batch_track_color_input_id <- function(track_id) {
+  paste0("batch_color_", digest::digest(as.character(track_id), algo = "xxhash32"))
+}
+
 #' Track Builder UI
 #'
 #' @param id module namespace ID
@@ -88,6 +92,17 @@ mod_track_builder_ui <- function(id) {
             ),
             shiny::tags$div(
               class = "d-flex gap-2",
+              shiny::actionButton(
+                ns("btn_open_track_params"),
+                shiny::tagList(shiny::icon("palette"), " Couleur / paramètres"),
+                class = "btn btn-outline-primary btn-sm"
+              ),
+              shiny::actionButton(
+                ns("btn_auto_palette"),
+                shiny::tagList(shiny::icon("magic"), " Palette auto"),
+                class = "btn btn-outline-primary btn-sm",
+                title = "Couleurs distinctes par modalité et dégradé selon le temps"
+              ),
               shiny::actionButton(ns("btn_toggle"),
                 shiny::tagList(shiny::icon("eye"), " On/Off"),
                 class = "btn btn-secondary btn-sm"),
@@ -105,9 +120,29 @@ mod_track_builder_ui <- function(id) {
                 class = "btn btn-secondary btn-sm")
             )
           ),
-          DT::DTOutput(ns("tracks_table"))
+          shiny::uiOutput(ns("display_filter_ui")),
+          shiny::tags$div(
+            class = "rt-track-order-hint",
+            shiny::icon("grip-lines"),
+            " Glissez-déposez les cartes pour construire l’ordre de la figure. Cmd/Ctrl-clic : sélection multiple."
+          ),
+          shiny::tags$div(
+            class = "rt-track-card-list",
+            `data-order-input` = ns("tracks_order_dragged"),
+            `data-selection-input` = ns("track_cards_selected"),
+            shiny::uiOutput(ns("track_cards_ui"))
+          ),
+          shiny::tags$details(
+            class = "rt-track-table-details",
+            shiny::tags$summary(shiny::icon("table"), " Vue tableau détaillée"),
+            shiny::tags$div(
+              class = "rt-track-order-table",
+              DT::DTOutput(ns("tracks_table"))
+            )
+          )
         ),
         shiny::tags$div(
+          id = ns("track_params_card"),
           class = "rt-card mt-3",
           shiny::tags$div(
             class = "rt-card-header",
@@ -158,16 +193,24 @@ mod_track_builder_server <- function(id, app_state, schema) {
       invisible(TRUE)
     }
 
-    selected_track_id <- function() app_state$selected_track_id %||% NULL
+    selected_track_ids <- function() {
+      card_ids <- as.character(unlist(input$track_cards_selected %||% character(0)))
+      valid_ids <- vapply(app_state$tracks %||% list(), function(track) track$track_id %||% "", character(1))
+      card_ids <- card_ids[nzchar(card_ids) & card_ids %in% valid_ids]
+      if (!is.null(input$track_cards_selected)) return(card_ids)
+      get_selected_track_ids(input, app_state$tracks %||% list())
+    }
+
+    selected_track_id <- function() {
+      ids <- selected_track_ids()
+      if (has_one_selection(ids)) return(ids[[1]])
+      app_state$selected_track_id %||% NULL
+    }
 
     selected_track <- function() {
       id <- selected_track_id()
-      if (is.null(id)) return(NULL)
+      if (is.null(id) || length(id) != 1L || is.na(id) || !nzchar(id)) return(NULL)
       get_track_by_id(app_state$tracks %||% list(), id)
-    }
-
-    selected_track_ids <- function() {
-      get_selected_track_ids(input, app_state$tracks %||% list())
     }
 
     template_refresh <- shiny::reactiveVal(0L)
@@ -290,9 +333,201 @@ mod_track_builder_server <- function(id, app_state, schema) {
       tracks_to_df(tracks)
     }, selection = list(mode = "multiple", target = "row"),
        rownames = FALSE,
-       options = list(pageLength = 20, dom = "tip",
+       options = list(pageLength = 50, paging = FALSE, dom = "ti",
+                      ordering = FALSE,
+                      scrollY = "360px", scrollCollapse = TRUE,
                       columnDefs = list(list(visible = FALSE, targets = 0)),
                       language = rt_dt_language()))
+
+    output$track_cards_ui <- shiny::renderUI({
+      tracks <- app_state$tracks %||% list()
+      if (length(tracks) == 0L) {
+        return(shiny::div(class = "rt-track-card-empty", "Aucune track configurée."))
+      }
+      selected <- as.character(unlist(input$track_cards_selected %||% character(0)))
+      shiny::tagList(lapply(seq_along(tracks), function(i) {
+        track <- tracks[[i]]
+        id <- track$track_id %||% paste0("track_", i)
+        colour <- as.character((track$params %||% list())$color %||% "#64748b")
+        family <- track_colour_family(track)
+        time <- track_timepoint(track)
+        time_label <- if (is.finite(time)) paste0("D", format(time, trim = TRUE)) else NULL
+        shiny::tags$div(
+          class = paste("rt-track-sort-card", if (id %in% selected) "is-selected" else "",
+                        if (!isTRUE(track$enabled)) "is-disabled" else ""),
+          draggable = "true",
+          `data-track-id` = id,
+          shiny::tags$div(class = "rt-track-drag-handle", shiny::icon("grip-vertical")),
+          shiny::tags$div(class = "rt-track-order-number", i),
+          shiny::tags$span(class = "rt-track-color-swatch", style = paste0("background:", colour)),
+          shiny::tags$div(
+            class = "rt-track-card-main",
+            shiny::tags$strong(track$track_name %||% "Track"),
+            shiny::tags$small(basename(track$file_path %||% "") %||% "")
+          ),
+          shiny::tags$div(
+            class = "rt-track-card-badges",
+            shiny::tags$span(class = "rt-track-chip", family),
+            if (!is.null(time_label)) shiny::tags$span(class = "rt-track-chip rt-track-chip-time", time_label),
+            shiny::tags$span(class = "rt-track-chip", track$track_type %||% "")
+          ),
+          shiny::tags$div(
+            class = "rt-track-card-state",
+            shiny::icon(if (isTRUE(track$enabled)) "eye" else "eye-slash"),
+            if (isTRUE(track$enabled)) " Affichée" else " Masquée"
+          )
+        )
+      }))
+    })
+
+    output$display_filter_ui <- shiny::renderUI({
+      tracks <- app_state$tracks %||% list()
+      if (length(tracks) == 0L) return(NULL)
+      families <- unique(vapply(tracks, track_colour_family, character(1)))
+      families <- families[!families %in% c("GENES", "BED")]
+      times <- vapply(tracks, track_timepoint, numeric(1))
+      time_keys <- unique(ifelse(is.finite(times), paste0("D", format(times, trim = TRUE)), "Sans temps"))
+      enabled <- vapply(tracks, function(track) isTRUE(track$enabled), logical(1))
+      enabled_families <- unique(vapply(tracks[enabled], track_colour_family, character(1)))
+      enabled_families <- intersect(families, enabled_families)
+      enabled_times <- times[enabled]
+      enabled_time_keys <- unique(ifelse(is.finite(enabled_times), paste0("D", format(enabled_times, trim = TRUE)), "Sans temps"))
+      context_types <- c("gtf", "genes", "bed", "narrowpeak", "broadpeak", "x_axis", "x-axis", "spacer", "scalebar")
+      context_tracks <- tracks[vapply(tracks, function(track) (track$track_type %||% "") %in% context_types, logical(1))]
+      keep_context <- length(context_tracks) == 0L || all(vapply(context_tracks, function(track) isTRUE(track$enabled), logical(1)))
+      shiny::tags$div(
+        class = "rt-track-display-filter",
+        shiny::tags$div(
+          class = "rt-track-display-filter-title",
+          shiny::icon("filter"),
+          shiny::tags$strong(" Choisir les tracks affichées"),
+          shiny::tags$small("Les tracks sont activées/masquées, jamais supprimées.")
+        ),
+        shiny::fluidRow(
+          shiny::column(5, shiny::selectizeInput(
+            ns("display_modalities"), "Modalités",
+            choices = families, selected = enabled_families, multiple = TRUE,
+            options = list(plugins = list("remove_button"), placeholder = "Choisir les modalités")
+          )),
+          shiny::column(4, shiny::selectizeInput(
+            ns("display_times"), "Temps",
+            choices = time_keys, selected = intersect(time_keys, enabled_time_keys), multiple = TRUE,
+            options = list(plugins = list("remove_button"), placeholder = "Choisir les temps")
+          )),
+          shiny::column(3,
+            shiny::checkboxInput(ns("display_keep_context"), "Garder annotations et gènes", keep_context)
+          )
+        ),
+        shiny::div(
+          class = "d-flex gap-2",
+          shiny::actionButton(ns("btn_apply_display_filter"),
+            shiny::tagList(shiny::icon("eye"), " Afficher ce choix"),
+            class = "btn btn-primary btn-sm flex-fill"),
+          shiny::actionButton(ns("btn_show_all_tracks"),
+            shiny::tagList(shiny::icon("list"), " Tout afficher"),
+            class = "btn btn-outline-primary btn-sm")
+        )
+      )
+    })
+
+    shiny::observeEvent(input$tracks_order_dragged, {
+      requested_ids <- as.character(unlist(input$tracks_order_dragged %||% character(0)))
+      tracks <- app_state$tracks %||% list()
+      current_ids <- vapply(tracks, function(track) track$track_id %||% "", character(1))
+      requested_ids <- requested_ids[nzchar(requested_ids) & requested_ids %in% current_ids]
+      if (length(requested_ids) != length(current_ids) || anyDuplicated(requested_ids)) {
+        shiny::showNotification("Le nouvel ordre reçu est incomplet; aucun changement appliqué.", type = "warning")
+        return()
+      }
+      reordered <- lapply(requested_ids, function(id) get_track_by_id(tracks, id))
+      for (i in seq_along(reordered)) {
+        reordered[[i]]$order <- i
+        reordered[[i]]$updated_at <- track_now()
+      }
+      app_state$tracks <- standardize_tracks(reordered, app_state$project_config)
+      save_tracks_and_invalidate()
+      shiny::showNotification("Ordre des tracks enregistré.", type = "message", duration = 3)
+      message("[TRACK_ORDER] Drag-and-drop order saved: ", paste(requested_ids, collapse = ", "))
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$track_cards_selected, {
+      ids <- selected_track_ids()
+      app_state$selected_track_id <- if (has_one_selection(ids)) ids[[1]] else NULL
+      has_any <- !is_empty(ids)
+      has_one <- has_one_selection(ids)
+      shinyjs::toggleState("btn_toggle", condition = has_any)
+      shinyjs::toggleState("btn_dup", condition = has_any)
+      shinyjs::toggleState("btn_delete", condition = has_any)
+      shinyjs::toggleState("btn_up", condition = has_one)
+      shinyjs::toggleState("btn_down", condition = has_one)
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$btn_open_track_params, {
+      ids <- selected_track_ids()
+      tracks <- app_state$tracks %||% list()
+      if (is_empty(ids)) {
+        if (length(tracks) == 0L) {
+          shiny::showNotification("Ajoutez d'abord une track.", type = "warning")
+          return()
+        }
+        app_state$selected_track_id <- tracks[[1]]$track_id %||% NULL
+        session$sendCustomMessage("rt_select_track_card", list(
+          container = ns("track_cards_ui"), id = tracks[[1]]$track_id
+        ))
+      }
+      session$sendCustomMessage("rt_scroll_to", list(id = ns("track_params_card")))
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$btn_auto_palette, {
+      tracks <- app_state$tracks %||% list()
+      if (length(tracks) == 0L) {
+        shiny::showNotification("Aucune track à colorer.", type = "warning")
+        return()
+      }
+      app_state$tracks <- standardize_tracks(
+        assign_automatic_track_colours(tracks),
+        app_state$project_config
+      )
+      save_tracks_and_invalidate()
+      shiny::showNotification(
+        "Palette appliquée : teinte par modalité, dégradé clair à foncé selon le temps.",
+        type = "message", duration = 7
+      )
+      message("[TRACK_COLOR] Automatic modality/time palette applied to ", length(tracks), " tracks")
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$btn_apply_display_filter, {
+      tracks <- app_state$tracks %||% list()
+      if (length(tracks) == 0L) return()
+      modalities <- input$display_modalities %||% character(0)
+      selected_times <- input$display_times %||% character(0)
+      keep_context <- isTRUE(input$display_keep_context)
+      tracks <- filter_tracks_for_display(tracks, modalities, selected_times, keep_context)
+      enabled_count <- sum(vapply(tracks, function(track) isTRUE(track$enabled), logical(1)))
+      if (enabled_count == 0L) {
+        shiny::showNotification("Cette combinaison ne sélectionne aucune track.", type = "warning")
+        return()
+      }
+      app_state$tracks <- standardize_tracks(tracks, app_state$project_config)
+      save_tracks_and_invalidate()
+      shiny::showNotification(
+        sprintf("Affichage mis à jour : %d track(s) active(s) sur %d.", enabled_count, length(tracks)),
+        type = "message", duration = 6
+      )
+    }, ignoreInit = TRUE)
+
+    shiny::observeEvent(input$btn_show_all_tracks, {
+      tracks <- app_state$tracks %||% list()
+      if (length(tracks) == 0L) return()
+      tracks <- lapply(tracks, function(track) {
+        track$enabled <- TRUE
+        track$updated_at <- track_now()
+        track
+      })
+      app_state$tracks <- standardize_tracks(tracks, app_state$project_config)
+      save_tracks_and_invalidate()
+      shiny::showNotification(sprintf("Les %d tracks sont affichées.", length(tracks)), type = "message")
+    }, ignoreInit = TRUE)
 
     shiny::observeEvent(input$tracks_table_rows_selected, {
       ids <- selected_track_ids()
@@ -309,7 +544,7 @@ mod_track_builder_server <- function(id, app_state, schema) {
 
     # Ajouter un track x-axis
     shiny::observeEvent(input$btn_add_xaxis, {
-      ttype <- "x-axis"
+      ttype <- "x_axis"
       tname <- "Axe X"
       current <- app_state$tracks
       new_t <- list(
@@ -324,7 +559,7 @@ mod_track_builder_server <- function(id, app_state, schema) {
       app_state$tracks <- standardize_tracks(c(current, list(new_t)), app_state$project_config)
       save_tracks_and_invalidate()
       message("[TRACK] Added track: ", new_t$track_id)
-      shiny::showNotification("Track 'x-axis' ajoutée.", type = "message")
+      shiny::showNotification("Axe de coordonnées ajouté.", type = "message")
     })
 
     # Ajouter un spacer
@@ -492,9 +727,19 @@ mod_track_builder_server <- function(id, app_state, schema) {
       if (has_multi_selection(ids)) {
         shinyjs::disable("btn_save_params")
         shinyjs::disable("btn_save_as_template")
+        selected_tracks <- Filter(function(track) track$track_id %in% ids,
+                                  app_state$tracks %||% list())
+        color_inputs <- lapply(selected_tracks, function(track) {
+          colourpicker::colourInput(
+            ns(batch_track_color_input_id(track$track_id)),
+            track$track_name %||% track$track_id,
+            value = as.character((track$params %||% list())$color %||% "#333333"),
+            showColour = "background"
+          )
+        })
         return(shiny::tagList(
           shiny::div(class = "alert alert-info p-2",
-            sprintf("%d tracks sélectionnées.", length(ids))
+            sprintf("%d tracks sélectionnées. Les couleurs peuvent être modifiées ensemble ci-dessous.", length(ids))
           ),
           shiny::tags$div(class = "d-flex flex-wrap gap-2",
             shiny::actionButton(ns("btn_enable_selected"), "Activer les tracks sélectionnées", class = "btn btn-secondary btn-sm"),
@@ -502,14 +747,28 @@ mod_track_builder_server <- function(id, app_state, schema) {
             shiny::actionButton(ns("btn_duplicate_selected"), "Dupliquer la sélection", class = "btn btn-secondary btn-sm"),
             shiny::actionButton(ns("btn_delete_selected"), "Supprimer la sélection", class = "btn btn-danger btn-sm"),
             shiny::actionButton(ns("btn_save_track_set"), "Sauvegarder sélection comme ensemble", class = "btn btn-primary btn-sm")
-          )
+          ),
+          shiny::tags$hr(class = "divider"),
+          shiny::tags$h6("Couleurs de la sélection"),
+          shiny::div(class = "rt-batch-colors", color_inputs),
+          shiny::actionButton(ns("btn_apply_selected_colors"),
+            shiny::tagList(shiny::icon("palette"), " Appliquer les couleurs"),
+            class = "btn btn-primary btn-sm w-100 mt-2")
         ))
       }
       shinyjs::enable("btn_save_params")
       shinyjs::enable("btn_save_as_template")
-      t <- selected_track()
+      # Resolve directly from the current DataTable selection. This avoids a
+      # reactive race with app_state$selected_track_id when changing rows.
+      id <- ids[[1]]
+      t <- get_track_by_id(app_state$tracks %||% list(), id)
       if (is.null(t)) return(shiny::p(shiny::em("Track sélectionnée introuvable.")))
-      params <- get_track_params(schema, t$track_type)
+      track_type <- as.character(t$track_type %||% "")
+      if (length(track_type) == 0L || is.na(track_type[[1]]) || !nzchar(track_type[[1]])) {
+        return(shiny::div(class = "alert alert-danger", "Type de track manquant ou invalide."))
+      }
+      track_type <- track_type[[1]]
+      params <- tryCatch(get_track_params(schema, track_type), error = function(e) NULL)
       if (length(params) == 0)
         return(shiny::p("Aucun paramètre pour ce type de track."))
 
@@ -521,19 +780,24 @@ mod_track_builder_server <- function(id, app_state, schema) {
         input_id <- ns(paste0("param_", pname))
         switch(ptype,
           "numeric" = shiny::numericInput(input_id, label, value = as.numeric(val %||% 0),
-                                          min = pdef$min, max = pdef$max),
+                                          min = pdef$min %||% NA_real_,
+                                          max = pdef$max %||% NA_real_,
+                                          step = pdef$step %||% NA_real_),
           "boolean" = shiny::checkboxInput(input_id, label, value = isTRUE(val)),
           "color"   = colourpicker::colourInput(input_id, label, value = as.character(val %||% "#333333")),
-          "select"  = shiny::selectInput(input_id, label,
-                                          choices = unlist(pdef$choices),
-                                          selected = as.character(val %||% pdef$choices[[1]])),
+          "select"  = {
+            choices <- unlist(pdef$choices %||% character(0), use.names = TRUE)
+            if (length(choices) == 0L) choices <- ""
+            shiny::selectInput(input_id, label, choices = choices,
+                               selected = as.character(val %||% choices[[1]]))
+          },
           shiny::textInput(input_id, label, value = as.character(val %||% ""))
         )
       })
       shiny::tagList(
         shiny::p(shiny::strong("Track : "), t$track_name,
                  shiny::span(class = "badge bg-secondary ms-2", t$track_type)),
-        if (t$track_type %in% c("bigwig", "bedgraph"))
+        if (track_type %in% c("bigwig", "bedgraph"))
           shiny::div(
             class = "alert alert-info p-2 small",
             "Pour comparer plusieurs samples du même assay, utilisez Shared scale by group ou Robust shared scale."
@@ -567,6 +831,25 @@ mod_track_builder_server <- function(id, app_state, schema) {
       message("[TRACK] Saved track: ", id)
       shiny::showNotification("Track enregistrée dans le projet.", type = "message")
     })
+
+    shiny::observeEvent(input$btn_apply_selected_colors, {
+      ids <- selected_track_ids()
+      if (is_empty(ids)) return()
+      tracks <- app_state$tracks %||% list()
+      for (i in seq_along(tracks)) {
+        if (!tracks[[i]]$track_id %in% ids) next
+        input_id <- batch_track_color_input_id(tracks[[i]]$track_id)
+        color <- input[[input_id]] %||% NULL
+        if (!is.null(color) && nzchar(color)) tracks[[i]]$params$color <- color
+        tracks[[i]]$updated_at <- track_now()
+      }
+      app_state$tracks <- standardize_tracks(tracks, app_state$project_config)
+      save_tracks_and_invalidate()
+      shiny::showNotification(
+        sprintf("Couleurs enregistrées pour %d tracks.", length(ids)),
+        type = "message", duration = 5
+      )
+    }, ignoreInit = TRUE)
 
     set_selected_enabled <- function(value) {
       ids <- selected_track_ids()
@@ -890,6 +1173,7 @@ tracks_to_df <- function(tracks) {
       Nom          = t$track_name %||% "?",
       Type         = t$track_type %||% "?",
       Fichier      = if (!is.null(t$file_path) && nchar(t$file_path) > 0) basename(t$file_path) else "—",
+      Couleur      = as.character((t$params %||% list())$color %||% "—"),
       Activée      = if (isTRUE(t$enabled)) "✓" else "✗",
       check.names  = FALSE,
       stringsAsFactors = FALSE

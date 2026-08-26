@@ -15,13 +15,9 @@ __pycache__/
 logs/*.log
 logs/*.txt
 
-# Runs and generated user data
-projects/*/runs/
-projects/*/inputs/raw/
-projects/*/inputs/linked/
-projects/*/exports/
-projects/*/preview/
-projects/*/cache/
+# Projects contain user paths, genomic data, registries, caches and run output.
+# Never version a local project; only keep the root placeholder.
+projects/**
 
 # Keep structure
 !projects/.gitkeep

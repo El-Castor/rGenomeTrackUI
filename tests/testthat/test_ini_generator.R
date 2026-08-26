@@ -34,6 +34,42 @@ test_that("INI output contains expected section headers", {
   expect_match(ini, "\\[X axis\\]")
 })
 
+test_that("a bottom genomic coordinate axis is added exactly once", {
+  tracks <- make_tracks()[1:2]
+  with_axis <- ensure_x_axis_track(tracks)
+  expect_length(with_axis, 3)
+  expect_identical(with_axis[[3]]$track_type, "x_axis")
+  expect_identical(with_axis[[3]]$params$where, "bottom")
+  expect_length(ensure_x_axis_track(with_axis), 3)
+
+  ini <- generate_tracks_ini(tracks, SCHEMA)
+  expect_match(ini, "\\[Coordonn.es g.nomiques\\]")
+  expect_match(ini, "file_type = x_axis")
+  expect_match(ini, "where = bottom")
+})
+
+test_that("many signal tracks receive compact adaptive heights", {
+  tracks <- lapply(seq_len(12), function(i) list(
+    track_id = paste0("signal_", i), track_type = "bigwig",
+    track_name = paste("Signal", i), enabled = TRUE, file_path = "",
+    params = list(height = 1.1)
+  ))
+  tracks <- c(tracks, list(
+    list(track_id = "peaks", track_type = "bed", track_name = "Peaks",
+         enabled = TRUE, file_path = "", params = list(height = 0.25)),
+    list(track_id = "genes", track_type = "gtf", track_name = "Genes",
+         enabled = TRUE, file_path = "", params = list(height = 0.9, fontsize = 8))
+  ))
+  compact <- apply_compact_track_heights(tracks, list(compact_track_layout = TRUE))
+  expect_true(all(vapply(compact[1:12], function(track) track$params$height <= 0.42, logical(1))))
+  expect_equal(compact[[13]]$params$height, 0.10)
+  expect_equal(compact[[14]]$params$height, 0.50)
+  expect_equal(compact[[14]]$params$fontsize, 6)
+
+  unchanged <- apply_compact_track_heights(tracks, list(compact_track_layout = FALSE))
+  expect_equal(unchanged[[1]]$params$height, 1.1)
+})
+
 test_that("INI output contains file = for file-backed tracks", {
   ini <- generate_tracks_ini(make_tracks(), SCHEMA)
   expect_match(ini, "file = /data/signal.bedgraph")
@@ -524,6 +560,75 @@ test_that("light prepare defers per-track signal statistics", {
 
   expect_false(grepl("min_value =", ini, fixed = TRUE))
   expect_false(grepl("max_value =", ini, fixed = TRUE))
+})
+
+test_that("light prepare also bypasses global shared scaling", {
+  tmpdir <- tempfile("ini-light-global-")
+  dir.create(tmpdir)
+  on.exit(unlink(tmpdir, recursive = TRUE), add = TRUE)
+  bg <- file.path(tmpdir, "signal.bedgraph")
+  writeLines(c("chr1\t0\t10\t2", "chr1\t10\t20\t8"), bg)
+  tracks <- list(
+    list(track_id = "s1", track_type = "bedgraph", track_name = "Signal",
+         enabled = TRUE, file_path = bg, params = list(color = "#123456"))
+  )
+
+  ini <- generate_tracks_ini(
+    tracks, SCHEMA, regions = "chr1:1-20",
+    figure_settings = list(
+      light_prepare = TRUE,
+      apply_shared_scale_to_signal_tracks = TRUE,
+      signal_scale_mode = "shared_global_max_padded"
+    )
+  )
+
+  expect_false(grepl("Raw global max detected", ini, fixed = TRUE))
+  expect_false(grepl("min_value =", ini, fixed = TRUE))
+  expect_false(grepl("max_value =", ini, fixed = TRUE))
+})
+
+test_that("modality scaling does not mix ATAC and WGBS ranges", {
+  tmpdir <- tempfile("ini-modality-")
+  dir.create(tmpdir)
+  on.exit(unlink(tmpdir, recursive = TRUE), add = TRUE)
+  atac <- file.path(tmpdir, "ATAC_D0.bedgraph")
+  cpg <- file.path(tmpdir, "CpG_D0.bedgraph")
+  writeLines(c("chr1\t0\t10\t2", "chr1\t10\t20\t10"), atac)
+  writeLines(c("chr1\t0\t10\t20", "chr1\t10\t20\t100"), cpg)
+  tracks <- list(
+    list(track_id = "atac", track_type = "bedgraph", track_name = "ATAC D0",
+         enabled = TRUE, file_path = atac, params = list(track_group = "ATAC-seq", color = "#123456")),
+    list(track_id = "cpg", track_type = "bedgraph", track_name = "CpG D0",
+         enabled = TRUE, file_path = cpg, params = list(track_group = "ATAC-seq", color = "#654321"))
+  )
+
+  scaled <- apply_global_signal_scale(
+    tracks, "chr1:1-20",
+    figure_settings = list(
+      apply_shared_scale_to_signal_tracks = TRUE,
+      signal_scale_mode = "shared_by_modality",
+      signal_max_padding_factor = 1.1
+    )
+  )
+
+  expect_equal(scaled$tracks[[1]]$params$track_group, "ATAC-seq")
+  expect_equal(scaled$tracks[[2]]$params$track_group, "WGBS-CpG")
+  expect_equal(as.numeric(scaled$tracks[[1]]$params$max_value), 11)
+  expect_equal(as.numeric(scaled$tracks[[2]]$params$max_value), 110)
+  expect_named(scaled$scale_info$group_summaries, c("ATAC-seq", "WGBS-CpG"))
+})
+
+test_that("annotation spacer is inserted between signals and BED tracks", {
+  tracks <- list(
+    list(track_id = "signal", track_type = "bigwig", enabled = TRUE),
+    list(track_id = "peaks", track_type = "bed", enabled = TRUE),
+    list(track_id = "second_signal", track_type = "bigwig", enabled = TRUE),
+    list(track_id = "genes", track_type = "gtf", enabled = TRUE)
+  )
+  spaced <- insert_spacer_before_annotations(tracks, height = 0.05)
+  expect_equal(vapply(spaced, `[[`, character(1), "track_id"),
+               c("signal", "spacer_before_annotations", "peaks", "second_signal", "genes"))
+  expect_equal(spaced[[2]]$params$height, 0.05)
 })
 
 test_that("spacer_before_genes is inserted before gene track", {

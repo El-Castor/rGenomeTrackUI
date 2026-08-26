@@ -144,9 +144,9 @@ ui <- bslib::page_navbar(
       shiny::tags$link(
         rel  = "stylesheet",
         type = "text/css",
-        href = "assets/styles.css?v=v07-run-progress"
+        href = "assets/styles.css?v=v12-track-cards"
       ),
-      shiny::tags$script(src = "assets/app.js?v=v06-upload-ready")
+      shiny::tags$script(src = "assets/app.js?v=v12-track-cards")
     )
   ),
 
@@ -275,7 +275,7 @@ server <- function(input, output, session) {
       track_label_h_align  = "left",
       decreasing_x_axis    = FALSE,
       signal_track_height  = 1.1,
-      annotation_track_height = 0.25,
+      annotation_track_height = 0.15,
       annotation_labels      = FALSE,
       gene_track_height    = 0.9,
       gene_label_fontsize  = 6,

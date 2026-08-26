@@ -1340,6 +1340,251 @@ label, .control-label, .shiny-label {
   text-align: left;
 }
 
+.rt-figure-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 7px 9px;
+  background: rgba(15, 23, 42, 0.96);
+  border-bottom: 1px solid #334155;
+  text-align: left;
+}
+
+.rt-zoom-help {
+  margin-left: 6px;
+  color: var(--rt-muted-light);
+  font-size: 11px;
+}
+
+.rt-figure-stage {
+  max-height: 72vh;
+  overflow: auto;
+  background: #ffffff;
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+
+.rt-figure-stage.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.figure-card .rt-zoomable-figure {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  transform-origin: top left;
+}
+
+.rt-figure-viewer:fullscreen {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  background: #020617;
+}
+
+.rt-figure-viewer:fullscreen .rt-figure-stage {
+  flex: 1;
+  max-height: none;
+}
+
+.rt-batch-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px 14px;
+}
+
+.rt-focus-flash {
+  outline: 2px solid var(--rt-accent);
+  outline-offset: 2px;
+  transition: outline-color 0.25s ease;
+}
+
+.rt-track-display-filter {
+  margin: 10px 16px 12px;
+  padding: 12px;
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.rt-track-display-filter-title {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 8px;
+  color: var(--rt-text);
+}
+
+.rt-track-display-filter-title small {
+  margin-left: auto;
+  color: var(--rt-muted-light);
+}
+
+.rt-track-order-hint {
+  margin: 0 16px 8px;
+  color: var(--rt-muted-light);
+  font-size: 11px;
+}
+
+.rt-track-card-list {
+  margin: 0 16px 12px;
+}
+
+.rt-track-card-list .shiny-html-output {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.rt-track-sort-card {
+  display: grid;
+  grid-template-columns: 20px 26px 14px minmax(170px, 1fr) minmax(150px, auto) 82px;
+  align-items: center;
+  gap: 9px;
+  min-height: 54px;
+  padding: 7px 11px;
+  border: 1px solid rgba(100, 116, 139, 0.32);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.86), rgba(15, 23, 42, 0.94));
+  box-shadow: 0 3px 10px rgba(2, 6, 23, 0.16);
+  cursor: grab;
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.rt-track-sort-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.28);
+}
+
+.rt-track-sort-card.is-selected {
+  border-color: var(--rt-accent);
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.18), 0 6px 18px rgba(2, 6, 23, 0.28);
+}
+
+.rt-track-sort-card.is-disabled {
+  opacity: 0.52;
+}
+
+.rt-track-sort-card.rt-track-dragging {
+  opacity: 0.38;
+  transform: scale(0.985);
+  border: 1px dashed var(--rt-accent);
+}
+
+.rt-track-drag-handle {
+  color: #64748b;
+  font-size: 15px;
+}
+
+.rt-track-order-number {
+  color: #94a3b8;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.rt-track-color-swatch {
+  width: 10px;
+  height: 32px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+}
+
+.rt-track-card-main {
+  min-width: 0;
+}
+
+.rt-track-card-main strong,
+.rt-track-card-main small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rt-track-card-main strong {
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.rt-track-card-main small {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.rt-track-card-badges {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rt-track-chip {
+  padding: 2px 7px;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #94a3b8;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.rt-track-chip-time {
+  border-color: rgba(45, 212, 191, 0.35);
+  color: #5eead4;
+}
+
+.rt-track-card-state {
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: right;
+}
+
+.rt-track-table-details {
+  margin: 0 16px 12px;
+  color: var(--rt-muted-light);
+  font-size: 11px;
+}
+
+.rt-track-table-details summary {
+  cursor: pointer;
+  padding: 7px 0;
+}
+
+.rt-track-card-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--rt-muted-light);
+}
+
+@media (max-width: 900px) {
+  .rt-track-sort-card {
+    grid-template-columns: 18px 22px 12px minmax(120px, 1fr) 72px;
+  }
+  .rt-track-card-badges { display: none; }
+}
+
+.rt-track-order-table tbody tr {
+  cursor: grab;
+}
+
+.rt-track-order-table tbody tr.rt-track-dragging {
+  cursor: grabbing;
+  opacity: 0.48;
+  outline: 2px solid var(--rt-accent);
+  outline-offset: -2px;
+}
+
 /* ---------------------------------------------------------------------------
    23. Layout utilities
    --------------------------------------------------------------------------- */

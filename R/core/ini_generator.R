@@ -31,11 +31,82 @@ COMPUTE_SIGNAL_SCALE_DURING_PREPARE <- FALSE
 
 SIGNAL_SCALE_MODE <- c(
   "auto_per_track",
+  "shared_by_modality",
   "shared_global_max",
   "shared_global_max_padded",
   "shared_global_quantile",
   "manual"
 )
+
+infer_signal_modality <- function(track) {
+  text <- tolower(paste(
+    track$track_name %||% "", track$file_name %||% "", track$file_path %||% "",
+    (track$params %||% list())$track_group %||% ""
+  ))
+  if (grepl("cpg", text)) return("WGBS-CpG")
+  if (grepl("(^|[^a-z])chg([^a-z]|$)", text)) return("WGBS-CHG")
+  if (grepl("chh", text)) return("WGBS-CHH")
+  if (grepl("wgbs|methyl|bisulf", text)) return("WGBS")
+  if (grepl("atac|accessib", text)) return("ATAC-seq")
+  group <- trimws(as.character((track$params %||% list())$track_group %||% ""))
+  if (nzchar(group)) group else "Autre signal"
+}
+
+apply_signal_scale_by_modality <- function(tracks, regions, quantile = 0.99,
+                                           shared_min_value = 0,
+                                           avoid_clipping = TRUE,
+                                           padding_factor = 1.15) {
+  signal_idx <- which(vapply(tracks, is_signal_track, logical(1)))
+  if (length(signal_idx) == 0L) return(list(tracks = tracks, scale_info = NULL))
+  groups <- vapply(tracks[signal_idx], infer_signal_modality, character(1))
+  summaries <- list()
+  all_warnings <- character(0)
+  all_used <- character(0)
+  all_excluded <- character(0)
+  total_values <- 0L
+
+  for (group in unique(groups)) {
+    idx <- signal_idx[groups == group]
+    info <- compute_shared_signal_scale(
+      tracks[idx], regions, "shared_global_max_padded",
+      quantile = quantile,
+      shared_min_value = shared_min_value,
+      avoid_clipping = avoid_clipping,
+      padding_factor = padding_factor
+    )
+    summaries[[group]] <- info
+    for (i in idx) {
+      if (is.null(tracks[[i]]$params)) tracks[[i]]$params <- list()
+      tracks[[i]]$params$track_group <- group
+      tracks[[i]] <- write_signal_track_with_scale(tracks[[i]], info)
+    }
+    all_used <- c(all_used, info$tracks_used %||% character(0))
+    all_excluded <- c(all_excluded, info$tracks_excluded %||% character(0))
+    total_values <- total_values + as.integer(info$number_of_values_used %||% 0L)
+    all_warnings <- c(all_warnings, paste0(group, " : ", info$warning %||% character(0)))
+    message("[INFO] Modality scale ", group, ": max_value=",
+            format_scale_value(info$shared_max_value), " (", length(idx), " track(s))")
+  }
+
+  list(
+    tracks = tracks,
+    scale_info = list(
+      scaling_mode = "shared_by_modality",
+      group_summaries = summaries,
+      raw_global_max = NULL,
+      shared_min_value = NULL,
+      shared_max_value = NULL,
+      final_max_value_used = NULL,
+      padding_factor = padding_factor,
+      quantile = quantile,
+      potential_clipping = "no",
+      number_of_values_used = total_values,
+      tracks_used = all_used,
+      tracks_excluded = all_excluded,
+      warning = all_warnings
+    )
+  )
+}
 
 make_signal_scale_cache_key <- function(files, region, mode, quantile, padding,
                                         shared_min_value = 0,
@@ -1219,6 +1290,15 @@ apply_global_signal_scale <- function(tracks, regions = NULL, figure_settings = 
   manual_max <- suppressWarnings(as.numeric(fs$manual_max_value %||% NA_real_))
   avoid_clipping <- isTRUE(fs$avoid_signal_clipping %||% AVOID_SIGNAL_CLIPPING)
   padding_factor <- suppressWarnings(as.numeric(fs$signal_max_padding_factor %||% SIGNAL_MAX_PADDING_FACTOR))
+  if (identical(mode, "shared_by_modality")) {
+    return(apply_signal_scale_by_modality(
+      tracks, regions,
+      quantile = q,
+      shared_min_value = shared_min,
+      avoid_clipping = avoid_clipping,
+      padding_factor = padding_factor
+    ))
+  }
   signal_tracks <- Filter(is_signal_track, tracks)
   signal_files <- vapply(signal_tracks, function(t) t$file_path %||% "", character(1))
   signal_files <- signal_files[nzchar(signal_files)]
@@ -1326,6 +1406,27 @@ apply_gene_layout_defaults <- function(tracks, figure_settings = NULL) {
   })
 }
 
+apply_compact_track_heights <- function(tracks, figure_settings = NULL) {
+  fs <- figure_settings %||% list()
+  if (!isTRUE(fs$compact_track_layout)) return(tracks)
+  n_signal <- sum(vapply(tracks, is_signal_track, logical(1)))
+  signal_cap <- if (n_signal >= 12L) 0.42 else if (n_signal >= 8L) 0.52 else if (n_signal >= 5L) 0.65 else 0.85
+  lapply(tracks, function(track) {
+    if (is.null(track$params)) track$params <- list()
+    current <- suppressWarnings(as.numeric(track$params$height %||% Inf))
+    if (!is.finite(current) || current <= 0) current <- Inf
+    if (is_signal_track(track)) track$params$height <- min(current, signal_cap)
+    if (identical(track$track_type %||% "", "bed")) {
+      track$params$height <- min(current, if (n_signal >= 8L) 0.10 else 0.15)
+    }
+    if (identical(track$track_type %||% "", "gtf")) {
+      track$params$height <- min(current, if (n_signal >= 8L) 0.50 else 0.65)
+      track$params$fontsize <- min(suppressWarnings(as.numeric(track$params$fontsize %||% 6)), 6)
+    }
+    track
+  })
+}
+
 #' Insert a spacer track after the last signal track and before gene tracks
 #'
 #' @param tracks ordered list of track objects
@@ -1356,8 +1457,59 @@ insert_spacer_before_genes <- function(tracks, enabled = TRUE, height = SPACER_B
   append(tracks, list(spacer), after = insert_before - 1L)
 }
 
+insert_spacer_before_annotations <- function(tracks, height = 0.05) {
+  if (length(tracks) == 0L || !is.finite(height) || height <= 0) return(tracks)
+  if (any(vapply(tracks, function(t) identical(t$track_id %||% "", "spacer_before_annotations"), logical(1)))) {
+    return(tracks)
+  }
+  signal_idx <- which(vapply(tracks, is_signal_track, logical(1)))
+  annotation_idx <- which(vapply(tracks, function(t) identical(t$track_type %||% "", "bed"), logical(1)))
+  if (length(signal_idx) == 0L || length(annotation_idx) == 0L) return(tracks)
+  # Une annotation peut se trouver entre deux groupes de signaux (ATAC, puis
+  # dACRs, puis WGBS). Insérer avant le premier BED directement précédé par
+  # un signal, pas seulement après le dernier signal de toute la figure.
+  insert_before <- annotation_idx[vapply(annotation_idx, function(i) {
+    i > 1L && is_signal_track(tracks[[i - 1L]])
+  }, logical(1))][1L]
+  if (length(insert_before) == 0L || is.na(insert_before)) return(tracks)
+  spacer <- list(
+    track_id = "spacer_before_annotations",
+    track_type = "spacer",
+    track_name = "spacer_before_annotations",
+    enabled = TRUE,
+    file_path = NULL,
+    params = list(height = height)
+  )
+  append(tracks, list(spacer), after = insert_before - 1L)
+}
+
+ensure_x_axis_track <- function(tracks) {
+  has_axis <- any(vapply(tracks, function(track) {
+    (track$track_type %||% "") %in% c("x_axis", "x-axis")
+  }, logical(1)))
+  if (has_axis) return(tracks)
+  c(tracks, list(list(
+    track_id = "automatic_x_axis",
+    track_type = "x_axis",
+    track_name = "Coordonnées génomiques",
+    enabled = TRUE,
+    file_path = NULL,
+    order = length(tracks) + 1L,
+    params = list(where = "bottom", fontsize = 6, title = "")
+  )))
+}
+
 signal_scaling_summary_lines <- function(scale_info) {
   if (is.null(scale_info)) return("# Signal scaling summary: legacy per-track settings")
+  group_lines <- if (length(scale_info$group_summaries %||% list()) > 0L) {
+    vapply(names(scale_info$group_summaries), function(group) {
+      info <- scale_info$group_summaries[[group]]
+      sprintf("# Echelle %s: min=%s max=%s (%d tracks)", group,
+              format_scale_value(info$shared_min_value),
+              format_scale_value(info$shared_max_value),
+              length(info$tracks_used %||% character(0)))
+    }, character(1))
+  } else character(0)
   c(
     "# Signal scaling summary",
     sprintf("# Mode d'echelle: %s", scale_info$scaling_mode %||% "unknown"),
@@ -1371,6 +1523,7 @@ signal_scaling_summary_lines <- function(scale_info) {
     sprintf("# Nombre de tracks signal inclus: %d", length(scale_info$tracks_used %||% character(0))),
     sprintf("# Nombre de valeurs utilisees: %d", as.integer(scale_info$number_of_values_used %||% 0L)),
     sprintf("# Tracks exclus du scaling: %s", paste(scale_info$tracks_excluded %||% character(0), collapse = ", ")),
+    group_lines,
     if (length(scale_info$warning %||% character(0)) > 0L) sprintf("# Warning: %s", paste(scale_info$warning, collapse = " | ")) else "# Warning: none",
     "# Note: normalisation d'affichage uniquement; les fichiers bigWig/bedGraph ne sont pas modifies."
   )
@@ -1590,8 +1743,17 @@ generate_tracks_ini <- function(tracks, schema, work_dir = NULL, regions = NULL,
   tracks <- lapply(tracks, merge_track_schema_defaults, schema = schema)
   tracks <- assign_default_track_colors(tracks, schema)
   tracks <- apply_gene_layout_defaults(tracks, figure_settings)
+  tracks <- apply_compact_track_heights(tracks, figure_settings)
   fs <- figure_settings %||% list()
-  global_scale <- apply_global_signal_scale(tracks, regions = regions, figure_settings = figure_settings)
+  # Le mode léger sert aux aperçus et à la préparation. Il doit être
+  # testé avant apply_global_signal_scale(), car cette fonction ouvre chaque
+  # BigWig et constituait précisément le blocage de plusieurs dizaines de
+  # secondes que le mode léger devait éviter.
+  global_scale <- if (isTRUE(fs$light_prepare)) {
+    list(tracks = tracks, scale_info = NULL)
+  } else {
+    apply_global_signal_scale(tracks, regions = regions, figure_settings = figure_settings)
+  }
   tracks <- global_scale$tracks
   # Preparing a run only needs a syntactically valid template. Reading every
   # BigWig here blocks Shiny for several seconds and is redundant because the
@@ -1601,10 +1763,12 @@ generate_tracks_ini <- function(tracks, schema, work_dir = NULL, regions = NULL,
   } else if (isTRUE(fs$light_prepare)) {
     message("[PREPARE] Light mode: signal statistics deferred until launch")
   }
+  tracks <- insert_spacer_before_annotations(tracks, height = 0.05)
   spacer_enabled <- isTRUE(fs$insert_spacer_before_genes %||% INSERT_SPACER_BEFORE_GENES)
   spacer_height <- suppressWarnings(as.numeric(fs$spacer_before_genes_height %||% SPACER_BEFORE_GENES_HEIGHT))
   if (!is.finite(spacer_height)) spacer_height <- SPACER_BEFORE_GENES_HEIGHT
   tracks <- insert_spacer_before_genes(tracks, enabled = spacer_enabled, height = spacer_height)
+  tracks <- ensure_x_axis_track(tracks)
 
   blocks <- vapply(tracks, function(t) {
     tryCatch(track_to_ini_block(t, schema, work_dir = work_dir, regions = regions,

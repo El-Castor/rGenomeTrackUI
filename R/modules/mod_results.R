@@ -64,12 +64,13 @@ mod_results_ui <- function(id) {
             "Mode d'échelle des signaux",
             choices = c(
               "Échelle automatique par track" = "auto_per_track",
+              "Partagée par modalité (ATAC/WGBS)" = "shared_by_modality",
               "Maximum global partagé" = "shared_global_max",
               "Maximum global partagé avec marge" = "shared_global_max_padded",
               "Quantile global partagé" = "shared_global_quantile",
               "Manuel" = "manual"
             ),
-            selected = "shared_global_max_padded"
+            selected = "shared_by_modality"
           ),
           shiny::fluidRow(
             shiny::column(6, shiny::numericInput(ns("results_min_value"), "Valeur min", value = 0, step = 0.1)),
@@ -80,20 +81,22 @@ mod_results_ui <- function(id) {
             shiny::column(6, shiny::numericInput(ns("results_quantile"), "Quantile global", value = 0.99, min = 0.90, max = 1, step = 0.005))
           ),
           shiny::fluidRow(
-            shiny::column(4, shiny::numericInput(ns("results_track_height"), "Hauteur signaux", value = 1.1, min = 0.5, max = 8, step = 0.1)),
-            shiny::column(4, shiny::numericInput(ns("results_annotation_height"), "Hauteur BED", value = 0.25, min = 0.2, max = 8, step = 0.05)),
-            shiny::column(4, shiny::numericInput(ns("results_gene_track_height"), "Hauteur gènes", value = 0.9, min = 0.5, max = 5, step = 0.1))
+            shiny::column(4, shiny::numericInput(ns("results_track_height"), "Hauteur signaux", value = 0.8, min = 0.25, max = 8, step = 0.05)),
+            shiny::column(4, shiny::numericInput(ns("results_annotation_height"), "Hauteur BED", value = 0.15, min = 0.1, max = 8, step = 0.05)),
+            shiny::column(4, shiny::numericInput(ns("results_gene_track_height"), "Hauteur gènes", value = 0.55, min = 0.25, max = 5, step = 0.05))
           ),
           shiny::fluidRow(
             shiny::column(6, shiny::numericInput(ns("results_spacer_height"), "Hauteur spacer avant gènes", value = 0.05, min = 0, max = 3, step = 0.05)),
             shiny::column(6, shiny::numericInput(ns("results_fontsize"), "Fontsize", value = 6, min = 4, max = 20, step = 1))
           ),
           shiny::numericInput(ns("results_gene_rows"), "Lignes de gènes (0 = automatique)", value = 0, min = 0, max = 20, step = 1),
+          shiny::checkboxInput(ns("results_compact_genes"), "Gènes compacts (fusionner les isoformes)", value = TRUE),
           shiny::checkboxInput(ns("results_apply_to_all_signal_tracks"), "Appliquer aux tracks de signal", value = TRUE),
           shiny::checkboxInput(ns("results_lock_shared_y_axis"), "Verrouiller l'axe Y partagé", value = TRUE),
           shiny::tags$div(
             class = "d-flex flex-wrap gap-2 mb-2",
             shiny::actionButton(ns("preset_publication"), "Panel publication", class = "btn btn-primary btn-sm"),
+            shiny::actionButton(ns("preset_multiomics"), "Multi-omique compacte", class = "btn btn-outline-primary btn-sm"),
             shiny::actionButton(ns("preset_compare"), "Comparer honnêtement", class = "btn btn-outline-primary btn-sm"),
             shiny::actionButton(ns("preset_small_peaks"), "Voir petits pics", class = "btn btn-outline-primary btn-sm"),
             shiny::actionButton(ns("preset_manual"), "Échelle manuelle", class = "btn btn-outline-secondary btn-sm"),
@@ -216,7 +219,7 @@ mod_results_server <- function(id, app_state) {
       list(
         width = input$results_width %||% 12,
         dpi = input$results_dpi %||% 300,
-        signal_scale_mode = input$signal_scale_mode_results %||% "shared_global_max_padded",
+        signal_scale_mode = input$signal_scale_mode_results %||% "shared_by_modality",
         min_value = input$results_min_value %||% 0,
         manual_max_value = input$results_manual_max_value %||% 100,
         padding_factor = input$results_padding_factor %||% 1.15,
@@ -228,6 +231,7 @@ mod_results_server <- function(id, app_state) {
         spacer_height = input$results_spacer_height %||% 0.05,
         fontsize = input$results_fontsize %||% 6,
         gene_rows = input$results_gene_rows %||% 0,
+        compact_genes = isTRUE(input$results_compact_genes),
         apply_to_all_signal_tracks = isTRUE(input$results_apply_to_all_signal_tracks),
         lock_shared_y_axis = isTRUE(input$results_lock_shared_y_axis)
       )
@@ -243,26 +247,30 @@ mod_results_server <- function(id, app_state) {
       }, numeric(1))
       signal_heights <- signal_heights[is.finite(signal_heights)]
       shiny::updateSelectInput(session, "signal_scale_mode_results",
-                               selected = fs$signal_scale_mode %||% "shared_global_max_padded")
+                               selected = fs$signal_scale_mode %||% "shared_by_modality")
       shiny::updateNumericInput(session, "results_width", value = fs$width %||% 12)
       shiny::updateNumericInput(session, "results_dpi", value = fs$dpi %||% 300)
       shiny::updateNumericInput(session, "results_min_value", value = fs$shared_min_value %||% fs$manual_min_value %||% 0)
       shiny::updateNumericInput(session, "results_manual_max_value", value = fs$manual_max_value %||% 100)
       shiny::updateNumericInput(session, "results_padding_factor", value = fs$signal_max_padding_factor %||% 1.15)
       shiny::updateNumericInput(session, "results_quantile", value = fs$shared_quantile %||% 0.99)
-      shiny::updateNumericInput(session, "results_track_height", value = fs$signal_track_height %||% if (length(signal_heights) > 0L) signal_heights[[1]] else 1.1)
+      shiny::updateNumericInput(session, "results_track_height", value = fs$signal_track_height %||% if (length(signal_heights) > 0L) signal_heights[[1]] else 0.8)
       shiny::updateNumericInput(session, "results_annotation_height", value = fs$annotation_track_height %||% 0.25)
-      shiny::updateNumericInput(session, "results_gene_track_height", value = fs$gene_track_height %||% 0.9)
+      shiny::updateNumericInput(session, "results_gene_track_height", value = fs$gene_track_height %||% 0.55)
       shiny::updateNumericInput(session, "results_spacer_height", value = fs$spacer_before_genes_height %||% 0.05)
       shiny::updateNumericInput(session, "results_fontsize", value = fs$gene_label_fontsize %||% 6)
       shiny::updateNumericInput(session, "results_gene_rows", value = fs$gene_rows %||% 0)
     }, ignoreNULL = FALSE)
 
     output$render_warning_ui <- shiny::renderUI({
-      mode <- input$signal_scale_mode_results %||% "shared_global_max_padded"
+      mode <- input$signal_scale_mode_results %||% "shared_by_modality"
       lr <- app_state$last_render %||% NULL
       signal_count <- if (is.null(lr)) 0L else length(Filter(is_signal_track, lr$tracks %||% list()))
       warnings <- character(0)
+      if (signal_count >= 8L) {
+        warnings <- c(warnings,
+          sprintf("%d pistes de signal : utilisez le preset « Multi-omique compacte » et la visionneuse zoomable.", signal_count))
+      }
       if (identical(mode, "auto_per_track") && signal_count > 1L) {
         warnings <- c(warnings, "Attention : une échelle automatique indépendante peut rendre des signaux faibles visuellement comparables à des signaux forts.")
       }
@@ -299,26 +307,45 @@ mod_results_server <- function(id, app_state) {
     })
 
     shiny::observeEvent(input$preset_compare, {
-      shiny::updateSelectInput(session, "signal_scale_mode_results", selected = "shared_global_max_padded")
+      shiny::updateSelectInput(session, "signal_scale_mode_results", selected = "shared_by_modality")
       shiny::updateNumericInput(session, "results_min_value", value = 0)
       shiny::updateNumericInput(session, "results_padding_factor", value = 1.15)
     })
 
     shiny::observeEvent(input$preset_publication, {
-      shiny::updateNumericInput(session, "results_width", value = 12)
+      shiny::updateNumericInput(session, "results_width", value = 10)
       shiny::updateNumericInput(session, "results_dpi", value = 300)
-      shiny::updateSelectInput(session, "signal_scale_mode_results", selected = "shared_global_max_padded")
+      shiny::updateSelectInput(session, "signal_scale_mode_results", selected = "shared_by_modality")
       shiny::updateNumericInput(session, "results_min_value", value = 0)
       shiny::updateNumericInput(session, "results_padding_factor", value = 1.15)
-      shiny::updateNumericInput(session, "results_track_height", value = 1.1)
-      shiny::updateNumericInput(session, "results_annotation_height", value = 0.25)
-      shiny::updateNumericInput(session, "results_gene_track_height", value = 0.9)
+      shiny::updateNumericInput(session, "results_track_height", value = 0.70)
+      shiny::updateNumericInput(session, "results_annotation_height", value = 0.12)
+      shiny::updateNumericInput(session, "results_gene_track_height", value = 0.50)
       shiny::updateNumericInput(session, "results_spacer_height", value = 0.05)
       shiny::updateNumericInput(session, "results_fontsize", value = 6)
       shiny::updateNumericInput(session, "results_gene_rows", value = 0)
       shiny::showNotification(
         "Proportions publication appliquées. Cliquez sur Appliquer et régénérer.",
         type = "message", duration = 6
+      )
+    })
+
+    shiny::observeEvent(input$preset_multiomics, {
+      shiny::updateNumericInput(session, "results_width", value = 10)
+      shiny::updateNumericInput(session, "results_dpi", value = 300)
+      shiny::updateSelectInput(session, "signal_scale_mode_results", selected = "shared_by_modality")
+      shiny::updateNumericInput(session, "results_min_value", value = 0)
+      shiny::updateNumericInput(session, "results_padding_factor", value = 1.10)
+      shiny::updateNumericInput(session, "results_track_height", value = 0.32)
+      shiny::updateNumericInput(session, "results_annotation_height", value = 0.10)
+      shiny::updateNumericInput(session, "results_gene_track_height", value = 0.35)
+      shiny::updateNumericInput(session, "results_spacer_height", value = 0)
+      shiny::updateNumericInput(session, "results_fontsize", value = 4)
+      shiny::updateNumericInput(session, "results_gene_rows", value = 0)
+      shiny::updateCheckboxInput(session, "results_compact_genes", value = TRUE)
+      shiny::showNotification(
+        "Profil multi-omique compact appliqué. Cliquez sur Appliquer et régénérer.",
+        type = "message", duration = 7
       )
     })
 
@@ -485,12 +512,31 @@ mod_results_server <- function(id, app_state) {
       shiny::addResourcePath(resource_name, out_dir)
       cache_buster <- as.integer(file.info(fig)$mtime)
       message("[RESULT] Displaying image: ", fig)
+      session$onFlushed(function() {
+        session$sendCustomMessage("rt_init_figure_viewers", list())
+      }, once = TRUE)
       shiny::tags$div(
-        class = "figure-card",
-        shiny::tags$img(
-          src   = paste0(resource_name, "/", basename(fig), "?v=", cache_buster),
-          style = "max-width:100%;",
-          alt   = "Figure générée"
+        class = "figure-card rt-figure-viewer",
+        shiny::tags$div(
+          class = "rt-figure-toolbar",
+          shiny::tags$button(type = "button", class = "btn btn-sm btn-outline-secondary rt-zoom-out",
+                             title = "Réduire", shiny::icon("search-minus")),
+          shiny::tags$button(type = "button", class = "btn btn-sm btn-outline-secondary rt-zoom-reset",
+                             "100 %"),
+          shiny::tags$button(type = "button", class = "btn btn-sm btn-outline-secondary rt-zoom-in",
+                             title = "Agrandir", shiny::icon("search-plus")),
+          shiny::tags$button(type = "button", class = "btn btn-sm btn-outline-primary rt-zoom-fullscreen",
+                             shiny::icon("expand"), " Plein écran"),
+          shiny::tags$span(class = "rt-zoom-help", "Ctrl/Cmd + molette : zoom · glisser : déplacer")
+        ),
+        shiny::tags$div(
+          class = "rt-figure-stage",
+          shiny::tags$img(
+            src = paste0(resource_name, "/", basename(fig), "?v=", cache_buster),
+            class = "rt-zoomable-figure",
+            alt = "Figure générée",
+            draggable = "false"
+          )
         ),
         shiny::tags$div(
           class = "figure-caption",

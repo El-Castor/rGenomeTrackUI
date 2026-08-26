@@ -62,6 +62,110 @@ get_selected_track_ids <- function(input, tracks) {
   ids[nzchar(ids)]
 }
 
+#' Infer a stable biological colour family from a track
+#'
+#' Known assays receive deliberately distinct hues. Unknown assays are grouped
+#' by the part of their label preceding a time point, so replicates/time courses
+#' still share a coherent gradient.
+track_colour_family <- function(track) {
+  label <- toupper(paste(track$track_name %||% "", track$track_type %||% ""))
+  if (grepl("ATAC", label)) return("ATAC")
+  if (grepl("(^|[^A-Z])CPG([^A-Z]|$)", label)) return("CPG")
+  if (grepl("(^|[^A-Z])CHG([^A-Z]|$)", label)) return("CHG")
+  if (grepl("(^|[^A-Z])CHH([^A-Z]|$)", label)) return("CHH")
+  if (grepl("RNA|TRANSCRIPT", label)) return("RNA")
+  if (grepl("CHIP|H3K|H2A|CTCF", label)) return("CHIP")
+  if ((track$track_type %||% "") %in% c("gtf", "genes")) return("GENES")
+  if ((track$track_type %||% "") %in% c("bed", "narrowpeak", "broadpeak")) return("BED")
+  stem <- toupper(trimws(track$track_name %||% "TRACK"))
+  stem <- sub("(?:^|[ _-])(?:D|T|DAY|TIME|H)[ _-]*[0-9]+(?:\\.[0-9]+)?.*$", "", stem, perl = TRUE)
+  stem <- gsub("[^A-Z0-9]+", "_", stem)
+  paste0("OTHER_", if (nzchar(stem)) stem else "TRACK")
+}
+
+#' Extract a numeric time point from a track label
+track_timepoint <- function(track) {
+  label <- toupper(track$track_name %||% "")
+  hit <- regexec("(?:^|[^A-Z0-9])(?:D|T|DAY|TIME|H)[ _-]*([0-9]+(?:\\.[0-9]+)?)", label, perl = TRUE)
+  parts <- regmatches(label, hit)[[1]]
+  if (length(parts) < 2L) return(NA_real_)
+  suppressWarnings(as.numeric(parts[[2]]))
+}
+
+track_colour_anchors <- function(family) {
+  known <- list(
+    ATAC = c("#BAE6FD", "#0284C7", "#075985"),
+    CPG = c("#FECACA", "#EF4444", "#991B1B"),
+    CHG = c("#99F6E4", "#14B8A6", "#115E59"),
+    CHH = c("#F5D0FE", "#D946EF", "#86198F"),
+    RNA = c("#BBF7D0", "#22C55E", "#166534"),
+    CHIP = c("#FDE68A", "#F59E0B", "#92400E"),
+    BED = c("#D4D4D8", "#52525B", "#18181B"),
+    GENES = c("#93C5FD", "#2563EB", "#1E3A8A")
+  )
+  if (!is.null(known[[family]])) return(known[[family]])
+  fallback <- list(
+    c("#FED7AA", "#F97316", "#9A3412"),
+    c("#DDD6FE", "#7C3AED", "#4C1D95"),
+    c("#A7F3D0", "#059669", "#064E3B"),
+    c("#FBCFE8", "#DB2777", "#831843")
+  )
+  key <- sum(utf8ToInt(family %||% "OTHER"))
+  fallback[[(key %% length(fallback)) + 1L]]
+}
+
+#' Assign modality-aware time gradients to tracks
+assign_automatic_track_colours <- function(tracks) {
+  tracks <- tracks %||% list()
+  if (length(tracks) == 0L) return(tracks)
+  families <- vapply(tracks, track_colour_family, character(1))
+  times <- vapply(tracks, track_timepoint, numeric(1))
+  types <- vapply(tracks, function(track) track$track_type %||% "", character(1))
+  eligible <- !types %in% c("x_axis", "x-axis", "spacer", "scalebar")
+  for (family in unique(families[eligible])) {
+    idx <- which(families == family & eligible)
+    anchors <- track_colour_anchors(family)
+    observed <- sort(unique(times[idx][is.finite(times[idx])]))
+    if (length(observed) == 0L) {
+      shades <- grDevices::colorRampPalette(anchors)(max(3L, length(idx) + 2L))
+      colours <- shades[seq.int(2L, length.out = length(idx))]
+    } else if (length(observed) == 1L) {
+      colours <- rep(anchors[[2]], length(idx))
+    } else {
+      scale <- grDevices::colorRampPalette(anchors)(length(observed))
+      colours <- vapply(times[idx], function(value) {
+        if (!is.finite(value)) anchors[[2]] else scale[[match(value, observed)]]
+      }, character(1))
+    }
+    for (j in seq_along(idx)) {
+      i <- idx[[j]]
+      if (is.null(tracks[[i]]$params)) tracks[[i]]$params <- list()
+      tracks[[i]]$params$color <- colours[[j]]
+      tracks[[i]]$updated_at <- track_now()
+    }
+  }
+  tracks
+}
+
+filter_tracks_for_display <- function(tracks, modalities, time_keys, keep_context = TRUE) {
+  tracks <- tracks %||% list()
+  context_types <- c("gtf", "genes", "bed", "narrowpeak", "broadpeak",
+                     "x_axis", "x-axis", "spacer", "scalebar")
+  lapply(tracks, function(track) {
+    type <- track$track_type %||% ""
+    family <- track_colour_family(track)
+    time <- track_timepoint(track)
+    time_key <- if (is.finite(time)) paste0("D", format(time, trim = TRUE)) else "Sans temps"
+    track$enabled <- if (type %in% context_types) {
+      isTRUE(keep_context)
+    } else {
+      family %in% (modalities %||% character(0)) && time_key %in% (time_keys %||% character(0))
+    }
+    track$updated_at <- track_now()
+    track
+  })
+}
+
 standardize_track <- function(track, project_config = NULL) {
   track <- track %||% list()
   params <- track$params %||% list()

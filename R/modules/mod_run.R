@@ -713,6 +713,12 @@ mod_run_server <- function(id, app_state, schema) {
         meta_done$last_render_ini <- prepared$config_file
         meta_done$last_render_index <- 0L
         save_run_metadata(meta_done, meta$run_path)
+        # Publier l'objet terminé seulement une fois toutes les sorties et
+        # métadonnées disponibles. Le module Résultats ne doit jamais
+        # rester branché sur l'ancien objet au statut "prepared".
+        current_run(meta_done)
+        app_state$current_run <- meta_done
+        app_state$last_run_path <- meta_done$run_path
         log_info(meta$run_path, sprintf("[RESULT] Displaying image: %s", output_file %||% "<none>"))
         if (!identical(prepared$region, app_state$last_run_region)) {
           log_error(meta$run_path, sprintf("[ERROR] Region mismatch: UI region = %s | Prepared region = %s | Run region = %s",

@@ -141,6 +141,50 @@ test_that("selection helpers map DT rows to stable track ids", {
   expect_true(is_empty(get_selected_track_ids(list(tracks_table_rows_selected = integer(0)), tracks)))
 })
 
+test_that("automatic colours use distinct assay families and time gradients", {
+  named_track <- function(id, name, type = "bigwig") {
+    track <- make_track(id)
+    track$track_name <- name
+    track$track_type <- type
+    track
+  }
+  tracks <- list(
+    named_track("atac_d0", "ATAC D0"),
+    named_track("atac_d4", "ATAC D4"),
+    named_track("cpg_d0", "CpG D0"),
+    named_track("cpg_d4", "CpG D4"),
+    named_track("axis", "Coordinates", "x_axis")
+  )
+  coloured <- assign_automatic_track_colours(tracks)
+  colours <- vapply(coloured[1:4], function(track) track$params$color, character(1))
+
+  expect_equal(track_timepoint(tracks[[1]]), 0)
+  expect_equal(track_timepoint(tracks[[2]]), 4)
+  expect_identical(track_colour_family(tracks[[1]]), "ATAC")
+  expect_identical(track_colour_family(tracks[[3]]), "CPG")
+  expect_false(identical(colours[[1]], colours[[2]]))
+  expect_false(identical(colours[[1]], colours[[3]]))
+  expect_false(identical(colours[[3]], colours[[4]]))
+  expect_identical(coloured[[5]]$params$color, "#38bdf8")
+})
+
+test_that("display filters combine modality and time while preserving context", {
+  tracks <- list(
+    modifyList(make_track("atac_d0"), list(track_name = "ATAC D0")),
+    modifyList(make_track("atac_d3"), list(track_name = "ATAC D3")),
+    modifyList(make_track("cpg_d0"), list(track_name = "CpG D0")),
+    list(track_id = "genes", track_name = "Genes", track_type = "gtf",
+         enabled = TRUE, params = list())
+  )
+  filtered <- filter_tracks_for_display(tracks, modalities = "ATAC", time_keys = "D3", keep_context = TRUE)
+  expect_equal(vapply(filtered, function(track) isTRUE(track$enabled), logical(1)),
+               c(FALSE, TRUE, FALSE, TRUE))
+
+  without_context <- filter_tracks_for_display(tracks, modalities = "CPG", time_keys = "D0", keep_context = FALSE)
+  expect_equal(vapply(without_context, function(track) isTRUE(track$enabled), logical(1)),
+               c(FALSE, FALSE, TRUE, FALSE))
+})
+
 test_that("generic project cache reports hits and misses", {
   tmp <- withr::local_tempdir()
   cache_file <- file.path(tmp, "cache.rds")

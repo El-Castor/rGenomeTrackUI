@@ -34,7 +34,7 @@ tracks:
         description: "Fill color"
       track_group:
         type: select
-        choices: ["ATAC-seq", "RNA-seq", "WGBS", "ChIP-seq", "Custom"]
+        choices: ["ATAC-seq", "WGBS-CpG", "WGBS-CHG", "WGBS-CHH", "WGBS", "RNA-seq", "ChIP-seq", "Custom"]
         default: "ATAC-seq"
         description: "Signal group used for shared visual scaling"
       scale_mode:

@@ -112,3 +112,69 @@ test_that("le fallback de validation upload protège les fichiers binaires", {
   expect_match(text, "else if \\(is_known_binary\\)")
   expect_match(text, "detect_file_type\\(pf\\$name\\)")
 })
+
+test_that("l'upload accepte et enregistre plusieurs fichiers", {
+  inputs_path <- file.path(modules_dir, "mod_inputs.R")
+  text <- paste(readLines(inputs_path, warn = FALSE), collapse = "\n")
+
+  expect_match(text, "multiple\\s*=\\s*TRUE")
+  expect_match(text, "for \\(i in seq_len\\(nrow\\(f\\)\\)\\)")
+  expect_match(text, "original_name = f\\$name\\[\\[i\\]\\]")
+  expect_match(text, "all\\(file.exists\\(f\\$datapath\\)\\)")
+})
+
+test_that("l'aperçu INI diffère les statistiques BigWig coûteuses", {
+  preview_path <- file.path(modules_dir, "mod_preview.R")
+  text <- paste(readLines(preview_path, warn = FALSE), collapse = "\n")
+
+  expect_match(text, "output\\$ini_preview")
+  expect_match(text, "fs\\$light_prepare\\s*<-\\s*TRUE")
+})
+
+test_that("les résultats proposent zoom et profil multi-omique", {
+  results_path <- file.path(modules_dir, "mod_results.R")
+  text <- paste(readLines(results_path, warn = FALSE), collapse = "\n")
+
+  expect_match(text, "rt-figure-viewer")
+  expect_match(text, "rt-zoom-fullscreen")
+  expect_match(text, "preset_multiomics")
+  expect_match(text, "results_track_height.*value = 0.8")
+  expect_match(text, "results_compact_genes")
+  expect_match(text, "rt_init_figure_viewers")
+  expect_match(text, "shared_by_modality")
+})
+
+test_that("l'éditeur multiple expose les couleurs des tracks", {
+  tracks_path <- file.path(modules_dir, "mod_track_builder.R")
+  text <- paste(readLines(tracks_path, warn = FALSE), collapse = "\n")
+
+  expect_match(text, "btn_apply_selected_colors")
+  expect_match(text, "Couleurs de la sélection")
+  expect_match(text, "batch_track_color_input_id")
+  expect_match(text, "Couleur / paramètres")
+  expect_match(text, 'scrollY = "360px"', fixed = TRUE)
+  expect_match(text, "btn_open_track_params")
+  expect_match(text, "btn_auto_palette")
+  expect_match(text, "assign_automatic_track_colours")
+  expect_match(text, "display_filter_ui")
+  expect_match(text, "btn_apply_display_filter")
+  expect_match(text, "filter_tracks_for_display")
+  expect_match(text, "btn_show_all_tracks")
+  expect_match(text, "tracks_order_dragged")
+  expect_match(text, "rt-track-order-table")
+  expect_match(text, "rt-track-card-list")
+  expect_match(text, "track_cards_ui")
+  expect_match(text, "track_cards_selected")
+  expect_match(text, "ordering = FALSE")
+  expect_match(text, "rt_scroll_to")
+  expect_match(text, "pdef\\$min %\\|\\|% NA_real_")
+
+  js <- paste(readLines(file.path("..", "..", "www", "app.js"), warn = FALSE), collapse = "\n")
+  expect_match(js, "initTrackRowSorting")
+  expect_match(js, "initTrackCardSorting")
+  expect_match(js, "rt-track-sort-card")
+  expect_match(js, "rt_select_track_card")
+  expect_match(js, "Shiny.setInputValue\\(inputId, ids")
+  expect_match(js, "dragstart")
+  expect_match(js, "dragover")
+})

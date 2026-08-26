@@ -228,14 +228,15 @@ mod_region_settings_ui <- function(id) {
           shiny::selectInput(ns("signal_scale_mode"), "Mode d'échelle des signaux",
                              choices = c(
                                "Échelle indépendante par track" = "auto_per_track",
+                               "Partagée par modalité (recommandé)" = "shared_by_modality",
                                "Maximum global partagé" = "shared_global_max",
                                "Maximum global partagé avec marge" = "shared_global_max_padded",
                                "Quantile global partagé" = "shared_global_quantile",
                                "Échelle manuelle" = "manual"
                              ),
-                             selected = "shared_global_max_padded"),
+                             selected = "shared_by_modality"),
           shiny::div(class = "alert alert-secondary p-2 small",
-            shiny::HTML("<strong>shared_global_max_padded</strong> : meilleur choix pour éviter le clipping et comparer honnêtement les conditions.<br><strong>shared_global_quantile</strong> : utile pour mieux voir les petits signaux, mais peut tronquer les pics extrêmes.")
+            shiny::HTML("<strong>shared_by_modality</strong> : partage l'échelle entre conditions comparables sans mélanger ATAC et WGBS.<br><strong>shared_global_max_padded</strong> : une seule échelle pour toutes les pistes.<br><strong>shared_global_quantile</strong> : utile pour mieux voir les petits signaux, mais peut tronquer les pics extrêmes.")
           ),
           shiny::fluidRow(
             shiny::column(6,
@@ -267,11 +268,11 @@ mod_region_settings_ui <- function(id) {
           shiny::fluidRow(
             shiny::column(6,
               shiny::numericInput(ns("signal_track_height"), "Hauteur signaux",
-                                  value = 1.1, min = 0.5, max = 8, step = 0.1)
+                                  value = 0.65, min = 0.2, max = 8, step = 0.05)
             ),
             shiny::column(6,
               shiny::numericInput(ns("annotation_track_height"), "Hauteur BED/annotations",
-                                  value = 0.25, min = 0.2, max = 8, step = 0.05)
+                                  value = 0.15, min = 0.1, max = 8, step = 0.05)
             )
           ),
           shiny::checkboxInput(ns("insert_spacer_before_genes"),
@@ -282,7 +283,7 @@ mod_region_settings_ui <- function(id) {
           shiny::fluidRow(
             shiny::column(4,
               shiny::numericInput(ns("gene_track_height"), "Hauteur track gènes",
-                                  value = 0.9, min = 0.5, max = 10, step = 0.1)
+                                  value = 0.55, min = 0.2, max = 10, step = 0.05)
             ),
             shiny::column(4,
               shiny::numericInput(ns("gene_label_fontsize"), "Police labels gènes",
@@ -292,6 +293,11 @@ mod_region_settings_ui <- function(id) {
               shiny::numericInput(ns("gene_rows"), "Lignes de gènes (0 = automatique)",
                                   value = 0, min = 0, max = 50, step = 1)
             )
+          ),
+          shiny::checkboxInput(
+            ns("compact_track_layout"),
+            "Adapter automatiquement la hauteur au nombre de tracks",
+            value = TRUE
           ),
           shiny::fluidRow(
             shiny::column(6,
@@ -345,7 +351,7 @@ mod_region_settings_server <- function(id, app_state) {
         shiny::updateSelectInput(session, "renderer",  selected = fs$renderer %||% "pyGenomeTracks")
         shiny::updateTextInput(session, "output_basename", value = fs$output_basename %||% "figure")
         shiny::updateCheckboxInput(session, "apply_shared_scale_to_signal_tracks", value = isTRUE(fs$apply_shared_scale_to_signal_tracks %||% TRUE))
-        shiny::updateSelectInput(session, "signal_scale_mode", selected = fs$signal_scale_mode %||% "shared_global_max_padded")
+        shiny::updateSelectInput(session, "signal_scale_mode", selected = fs$signal_scale_mode %||% "shared_by_modality")
         shiny::updateNumericInput(session, "shared_min_value", value = fs$shared_min_value %||% 0)
         shiny::updateNumericInput(session, "shared_quantile", value = fs$shared_quantile %||% 0.99)
         shiny::updateCheckboxInput(session, "avoid_signal_clipping", value = isTRUE(fs$avoid_signal_clipping %||% TRUE))
@@ -353,10 +359,11 @@ mod_region_settings_server <- function(id, app_state) {
         shiny::updateNumericInput(session, "manual_min_value", value = fs$manual_min_value %||% 0)
         shiny::updateNumericInput(session, "manual_max_value", value = fs$manual_max_value %||% 100)
         shiny::updateCheckboxInput(session, "insert_spacer_before_genes", value = isTRUE(fs$insert_spacer_before_genes %||% TRUE))
-        shiny::updateNumericInput(session, "signal_track_height", value = fs$signal_track_height %||% 1.1)
-        shiny::updateNumericInput(session, "annotation_track_height", value = fs$annotation_track_height %||% 0.25)
+        shiny::updateNumericInput(session, "signal_track_height", value = fs$signal_track_height %||% 0.65)
+        shiny::updateNumericInput(session, "annotation_track_height", value = fs$annotation_track_height %||% 0.15)
         shiny::updateNumericInput(session, "spacer_before_genes_height", value = fs$spacer_before_genes_height %||% 0.05)
-        shiny::updateNumericInput(session, "gene_track_height", value = fs$gene_track_height %||% 0.9)
+        shiny::updateNumericInput(session, "gene_track_height", value = fs$gene_track_height %||% 0.55)
+        shiny::updateCheckboxInput(session, "compact_track_layout", value = isTRUE(fs$compact_track_layout %||% TRUE))
         shiny::updateNumericInput(session, "gene_label_fontsize", value = fs$gene_label_fontsize %||% 6)
         shiny::updateNumericInput(session, "gene_rows", value = fs$gene_rows %||% 0)
         shiny::updateSelectInput(session, "gene_style", selected = fs$gene_style %||% "UCSC")
@@ -1140,13 +1147,14 @@ mod_region_settings_server <- function(id, app_state) {
       shiny::updateNumericInput(session, "width", value = 12)
       shiny::updateNumericInput(session, "dpi", value = 300)
       shiny::updateNumericInput(session, "fontsize", value = 8)
-      shiny::updateNumericInput(session, "signal_track_height", value = 1.1)
-      shiny::updateNumericInput(session, "annotation_track_height", value = 0.25)
+      shiny::updateNumericInput(session, "signal_track_height", value = 0.65)
+      shiny::updateNumericInput(session, "annotation_track_height", value = 0.12)
       shiny::updateNumericInput(session, "spacer_before_genes_height", value = 0.05)
-      shiny::updateNumericInput(session, "gene_track_height", value = 0.9)
+      shiny::updateNumericInput(session, "gene_track_height", value = 0.55)
       shiny::updateNumericInput(session, "gene_label_fontsize", value = 6)
       shiny::updateNumericInput(session, "gene_rows", value = 0)
-      shiny::updateSelectInput(session, "signal_scale_mode", selected = "shared_global_max_padded")
+      shiny::updateCheckboxInput(session, "compact_track_layout", value = TRUE)
+      shiny::updateSelectInput(session, "signal_scale_mode", selected = "shared_by_modality")
       shiny::showNotification(
         "Profil publication appliqué. Cliquez sur Enregistrer les paramètres.",
         type = "message", duration = 6
@@ -1164,7 +1172,7 @@ mod_region_settings_server <- function(id, app_state) {
         track_label_h_align  = input$track_label_h_align,
         decreasing_x_axis    = isTRUE(input$decreasing_x_axis),
         apply_shared_scale_to_signal_tracks = isTRUE(input$apply_shared_scale_to_signal_tracks),
-        signal_scale_mode     = input$signal_scale_mode %||% "shared_global_max_padded",
+        signal_scale_mode     = input$signal_scale_mode %||% "shared_by_modality",
         shared_min_value      = input$shared_min_value %||% 0,
         shared_quantile       = input$shared_quantile %||% 0.99,
         avoid_signal_clipping = isTRUE(input$avoid_signal_clipping),
@@ -1172,11 +1180,12 @@ mod_region_settings_server <- function(id, app_state) {
         manual_min_value      = input$manual_min_value %||% 0,
         manual_max_value      = input$manual_max_value %||% 100,
         insert_spacer_before_genes = isTRUE(input$insert_spacer_before_genes),
-        signal_track_height   = input$signal_track_height %||% 1.1,
-        annotation_track_height = input$annotation_track_height %||% 0.25,
+        signal_track_height   = input$signal_track_height %||% 0.65,
+        annotation_track_height = input$annotation_track_height %||% 0.15,
         annotation_labels      = FALSE,
         spacer_before_genes_height = input$spacer_before_genes_height %||% 0.05,
-        gene_track_height     = input$gene_track_height %||% 0.9,
+        gene_track_height     = input$gene_track_height %||% 0.55,
+        compact_track_layout  = isTRUE(input$compact_track_layout),
         gene_label_fontsize   = input$gene_label_fontsize %||% 6,
         gene_rows             = input$gene_rows %||% 0,
         gene_style            = input$gene_style %||% "UCSC",

@@ -45,7 +45,8 @@ mod_inputs_ui <- function(id) {
                           Pour les très gros fichiers (&gt; 100 Mo), privilégiez
                           <strong>Chemin local + Lien symbolique</strong>.")
                       ),
-                      shiny::fileInput(ns("file_upload"), "Choisir un fichier",
+                      shiny::fileInput(ns("file_upload"), "Choisir un ou plusieurs fichiers",
+                                       multiple = TRUE,
                                        accept = c(".bw", ".bigwig", ".bed", ".bedgraph", ".bg",
                                                   ".gtf", ".gff", ".gff3", ".narrowPeak",
                                                   ".bedpe", ".links")),
@@ -60,7 +61,7 @@ mod_inputs_ui <- function(id) {
                       shiny::uiOutput(ns("upload_format_hint")),
                       shiny::textInput(ns("upload_notes"), "Notes (optionnel)"),
                       shiny::actionButton(ns("btn_add_upload"),
-                        shiny::tagList(shiny::icon("plus"), " Ajouter au registre"),
+                        shiny::tagList(shiny::icon("plus"), " Ajouter les fichiers au registre"),
                         class = "btn btn-primary w-100")
                     )
                   ),
@@ -303,7 +304,7 @@ mod_inputs_server <- function(id, app_state, schema) {
       has_project <- !is.null(app_state$project_config)
       f <- input$file_upload
       upload_ready <- has_project && !is.null(f) && nrow(f) > 0 &&
-        file.exists(f$datapath[[1]])
+        all(file.exists(f$datapath))
       shinyjs::toggleState("btn_add_upload", condition = upload_ready)
       shinyjs::toggleState("btn_add_local",  condition = has_project)
     })
@@ -369,22 +370,26 @@ mod_inputs_server <- function(id, app_state, schema) {
       f <- input$file_upload
       shiny::req(!is.null(f), nrow(f) > 0)
       selected_type <- input$upload_track_type %||% ""
-      if (!nzchar(selected_type)) {
+      if (nrow(f) > 1L) {
+        selected_type <- ""
+        shiny::updateSelectInput(session, "upload_track_type", selected = "")
+      } else if (!nzchar(selected_type)) {
         detected_type <- file_type_to_track_type(detect_file_type(f$name[[1]]))
         if (!is.null(detected_type) && !identical(detected_type, "unknown")) {
           selected_type <- detected_type
           shiny::updateSelectInput(session, "upload_track_type", selected = detected_type)
         }
       }
-      message(sprintf("[Inputs] Upload received: name=%s size=%s temp=%s",
-                      f$name[[1]], f$size[[1]], f$datapath[[1]]))
-      pending_file(list(path = f$datapath[[1]], name = f$name[[1]],
+      message(sprintf("[Inputs] Upload received: %d file(s): %s",
+                      nrow(f), paste(f$name, collapse = ", ")))
+      pending_file(list(path = f$datapath, name = f$name, size = f$size,
                         track_type = selected_type))
       add_result(NULL)
       session$sendCustomMessage("rt_upload_received", list(
         id = ns("upload_status"),
-        name = f$name[[1]],
-        size = f$size[[1]]
+        name = if (nrow(f) == 1L) f$name[[1]] else paste(f$name, collapse = ", "),
+        count = nrow(f),
+        size = sum(f$size, na.rm = TRUE)
       ))
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
     shiny::observe({
@@ -400,6 +405,38 @@ mod_inputs_server <- function(id, app_state, schema) {
       if (is.null(pf)) {
         return(shiny::div(class = "text-muted mt-3",
           shiny::icon("file"), " Sélectionnez un fichier pour afficher sa validation."))
+      }
+      if (length(pf$path) > 1L) {
+        rows <- lapply(seq_along(pf$path), function(i) {
+          detected <- detect_file_type(pf$name[[i]])
+          track_type <- file_type_to_track_type(detected)
+          exists <- file.exists(pf$path[[i]])
+          size <- suppressWarnings(as.numeric(pf$size[[i]] %||% file.info(pf$path[[i]])$size))
+          size_label <- if (!is.na(size) && size >= 1048576) {
+            sprintf("%.1f Mo", size / 1048576)
+          } else if (!is.na(size)) {
+            sprintf("%.1f Ko", size / 1024)
+          } else "taille inconnue"
+          shiny::div(
+            class = "d-flex justify-content-between align-items-center border-bottom py-2 gap-2",
+            shiny::div(shiny::icon(if (exists) "check-circle" else "times-circle"), " ",
+                       shiny::tags$strong(pf$name[[i]])),
+            shiny::tags$small(
+              class = if (exists) "text-muted text-nowrap" else "text-danger text-nowrap",
+              sprintf("%s · %s", if (identical(track_type, "unknown")) "type inconnu" else track_type,
+                      size_label)
+            )
+          )
+        })
+        return(shiny::tagList(
+          shiny::div(class = "alert alert-info p-2 mb-2",
+            shiny::icon("copy"), " ",
+            shiny::tags$strong(sprintf("%d fichiers prêts à être ajoutés", length(pf$path))),
+            shiny::tags$br(),
+            shiny::tags$small("Le type sera détecté séparément pour chaque fichier.")
+          ),
+          rows
+        ))
       }
       # Détecter le format depuis le type de track
       tt <- pf$track_type
@@ -609,19 +646,63 @@ mod_inputs_server <- function(id, app_state, schema) {
 
     shiny::observeEvent(input$btn_add_upload, {
       f <- input$file_upload
-      if (is.null(f)) {
+      if (is.null(f) || nrow(f) == 0L) {
         shiny::showNotification("Aucun fichier sélectionné.", type = "warning", duration = 5)
         add_result(list(type = "warning", msg = "Veuillez sélectionner un fichier avant de cliquer sur Ajouter."))
         return()
       }
-      do_add_file(
-        path          = f$datapath,
-        mode          = "copy",   # upload = toujours copy
-        track_type    = input$upload_track_type,
-        notes         = input$upload_notes,
-        original_name = f$name,
-        source_type   = "upload"
+      shinyjs::disable("btn_add_upload")
+      on.exit(shinyjs::enable("btn_add_upload"), add = TRUE)
+      successes <- character(0)
+      failures <- character(0)
+      common_type <- input$upload_track_type %||% ""
+      shiny::withProgress(
+        message = "Ajout des fichiers au registre",
+        value = 0,
+        {
+          for (i in seq_len(nrow(f))) {
+            shiny::incProgress(1 / nrow(f), detail = sprintf("%d/%d — %s", i, nrow(f), f$name[[i]]))
+            tryCatch({
+              app_state$registry <- add_file_to_registry(
+                project_config = app_state$project_config,
+                source_path = f$datapath[[i]],
+                mode = "copy",
+                track_type = if (nzchar(common_type)) common_type else NULL,
+                notes = input$upload_notes %||% "",
+                original_name = f$name[[i]]
+              )
+              successes <- c(successes, f$name[[i]])
+            }, error = function(e) {
+              failures <<- c(failures, sprintf("%s : %s", f$name[[i]], conditionMessage(e)))
+            })
+          }
+        }
       )
+      if (length(successes) > 0L) {
+        pending_file(NULL)
+        shiny::showNotification(
+          sprintf("%d fichier(s) ajouté(s) au registre.", length(successes)),
+          type = "message", duration = 6
+        )
+        add_result(list(
+          type = if (length(failures) > 0L) "warning" else "success",
+          msg = sprintf("<strong>%d fichier(s) ajouté(s).</strong>%s",
+            length(successes),
+            if (length(failures) > 0L) sprintf("<br>%d échec(s).", length(failures)) else "")
+        ))
+        bslib::nav_select(ns("inputs_tabs"), selected = "Registre", session = session)
+      }
+      if (length(failures) > 0L) {
+        message("[Inputs] Batch upload failures: ", paste(failures, collapse = " | "))
+        shiny::showNotification(paste(failures, collapse = "\n"), type = "error", duration = 12)
+        if (length(successes) == 0L) {
+          add_result(list(
+            type = "error",
+            msg = sprintf("<strong>Aucun fichier ajouté.</strong><br>%s",
+                          htmltools::htmlEscape(paste(failures, collapse = " | ")))
+          ))
+        }
+      }
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     shiny::observeEvent(input$btn_add_local, {

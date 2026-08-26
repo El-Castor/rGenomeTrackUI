@@ -4,7 +4,7 @@
 
 **Interface graphique locale pour la génération de figures de genomic tracks via rGenomeTracks et pyGenomeTracks.**
 
-[![Phase](https://img.shields.io/badge/phase-v0.4%20dark%20theme-blueviolet)](https://github.com)
+[![Version](https://img.shields.io/badge/version-v2.0-14b8a6)](https://github.com)
 [![Tests](https://img.shields.io/badge/tests-434%20passed-brightgreen)](tests/testthat)
 [![License](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
 

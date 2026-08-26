@@ -169,6 +169,23 @@ test_that("publication panel settings apply compact and balanced track heights",
   expect_equal(adjusted[[3]]$params$height, 1.5)
 })
 
+test_that("compact gene rendering collapses isoforms and reduces height", {
+  tracks <- list(list(
+    track_type = "gtf",
+    params = list(height = 1.5, display = "stacked", merge_transcripts = FALSE)
+  ))
+  adjusted <- apply_results_render_track_settings(tracks, list(
+    compact_genes = TRUE,
+    gene_track_height = 0.35,
+    fontsize = 4
+  ))
+  expect_equal(adjusted[[1]]$params$height, 0.35)
+  expect_equal(adjusted[[1]]$params$fontsize, 4)
+  expect_identical(adjusted[[1]]$params$display, "collapsed")
+  expect_true(adjusted[[1]]$params$merge_transcripts)
+  expect_identical(adjusted[[1]]$params$gene_rows, 0)
+})
+
 test_that("result render settings merge into figure settings", {
   fs <- merge_results_render_settings(
     base_settings = list(signal_scale_mode = "auto_per_track", width = 38),

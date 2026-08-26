@@ -211,7 +211,7 @@ merge_results_render_settings <- function(base_settings = list(), settings = lis
   fs$width <- settings$width %||% fs$width %||% 12
   fs$dpi <- settings$dpi %||% fs$dpi %||% 300
   fs$apply_shared_scale_to_signal_tracks <- isTRUE(settings$apply_to_all_signal_tracks %||% TRUE)
-  fs$signal_scale_mode <- settings$signal_scale_mode %||% fs$signal_scale_mode %||% "shared_global_max_padded"
+  fs$signal_scale_mode <- settings$signal_scale_mode %||% fs$signal_scale_mode %||% "shared_by_modality"
   fs$shared_min_value <- settings$min_value %||% fs$shared_min_value %||% 0
   fs$manual_min_value <- settings$min_value %||% fs$manual_min_value %||% 0
   fs$manual_max_value <- settings$manual_max_value %||% fs$manual_max_value %||% 100
@@ -219,13 +219,16 @@ merge_results_render_settings <- function(base_settings = list(), settings = lis
   fs$avoid_signal_clipping <- TRUE
   fs$signal_max_padding_factor <- settings$padding_factor %||% fs$signal_max_padding_factor %||% 1.15
   fs$signal_track_height <- settings$track_height %||% fs$signal_track_height %||% 1.1
-  fs$annotation_track_height <- settings$annotation_height %||% fs$annotation_track_height %||% 0.25
+  fs$annotation_track_height <- settings$annotation_height %||% fs$annotation_track_height %||% 0.15
   fs$annotation_labels <- isTRUE(settings$annotation_labels %||% FALSE)
   fs$insert_spacer_before_genes <- TRUE
   fs$spacer_before_genes_height <- settings$spacer_height %||% fs$spacer_before_genes_height %||% 0.05
   fs$gene_track_height <- settings$gene_track_height %||% fs$gene_track_height %||% 0.9
   fs$gene_label_fontsize <- settings$fontsize %||% fs$gene_label_fontsize %||% 6
   fs$gene_rows <- settings$gene_rows %||% fs$gene_rows %||% 0
+  # Values entered in the Results panel are explicit and must not subsequently
+  # be capped by the automatic layout used for initial runs.
+  fs$compact_track_layout <- FALSE
   fs
 }
 
@@ -246,6 +249,13 @@ apply_results_render_track_settings <- function(tracks, settings = list()) {
     if (identical(track$track_type %||% "", "bed") && is.finite(annotation_height)) {
       track$params$height <- annotation_height
     }
+    if (identical(track$track_type %||% "", "gtf") && isTRUE(settings$compact_genes)) {
+      track$params$height <- suppressWarnings(as.numeric(settings$gene_track_height %||% 0.45))
+      track$params$fontsize <- suppressWarnings(as.numeric(settings$fontsize %||% 4))
+      track$params$display <- "collapsed"
+      track$params$merge_transcripts <- TRUE
+      track$params$gene_rows <- 0
+    }
     track
   })
 }
@@ -259,6 +269,16 @@ apply_results_render_track_settings <- function(tracks, settings = list()) {
 #' @export
 compute_render_signal_summary <- function(tracks, region, figure_settings = list()) {
   fs <- figure_settings %||% list()
+  if (identical(fs$signal_scale_mode %||% "", "shared_by_modality")) {
+    grouped <- apply_signal_scale_by_modality(
+      tracks, region,
+      quantile = fs$shared_quantile %||% 0.99,
+      shared_min_value = fs$shared_min_value %||% 0,
+      avoid_clipping = isTRUE(fs$avoid_signal_clipping %||% TRUE),
+      padding_factor = fs$signal_max_padding_factor %||% 1.15
+    )
+    return(grouped$scale_info)
+  }
   signal_tracks <- Filter(is_signal_track, tracks %||% list())
   compute_shared_signal_scale(
     signal_tracks = signal_tracks,

@@ -230,6 +230,10 @@ mod_preview_server <- function(id, app_state, schema) {
       enabled <- resolve_tracks()
       regions <- app_state$regions %||% character(0)
       fs <- app_state$figure_settings %||% list()
+      # Cet aperçu est purement textuel. Recalculer ici les statistiques de
+      # chaque BigWig bloquait toute l'application après un run complexe et
+      # retardait l'affichage de l'onglet Résultats.
+      fs$light_prepare <- TRUE
       if (length(enabled) == 0) return("# Aucune track activée.")
       tryCatch(generate_tracks_ini(enabled, schema, regions = regions, figure_settings = fs), error = function(e) paste("Erreur:", e$message))
     })
